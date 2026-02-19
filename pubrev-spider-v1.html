@@ -1,0 +1,1761 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PubRev+ Studio Modeling</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
+
+// Simple localStorage helpers
+const store = {
+    get: (key) => {
+        try {
+            const v = localStorage.getItem(key);
+            return v ? JSON.parse(v) : null;
+        } catch(e) { return null; }
+    },
+    set: (key, value) => {
+        try {
+            localStorage.setItem(key, JSON.stringify(value));
+        } catch(e) { console.error('Save error:', e); }
+    }
+};
+
+function App() {
+    const [tab, setTab] = useState('dashboard');
+    const [campaigns, setCampaigns] = useState({});
+    const [campaignMeta, setCampaignMeta] = useState({});
+    const [snapshots, setSnapshots] = useState([]);
+    const [changelog, setChangelog] = useState([]);
+    const [settings, setSettings] = useState({
+        targetCPA: 2.50,
+        maxCPA: 8.00,
+        minDailyClicks: 50,
+        learningThreshold: 50,
+        stabilityDays: 3,
+        stabilityTolerance: 0.05
+    });
+    const [uploading, setUploading] = useState(false);
+    const [timeframes, setTimeframes] = useState({});
+
+    useEffect(() => {
+        const c = store.get('spider-campaigns'); if (c) setCampaigns(c);
+        const m = store.get('spider-meta'); if (m) setCampaignMeta(m);
+        const s = store.get('spider-snapshots'); if (s) setSnapshots(s);
+        const l = store.get('spider-changelog'); if (l) setChangelog(l);
+        const st = store.get('spider-settings'); if (st) setSettings(st);
+    }, []);
+
+    const save = (key, value) => store.set(key, value);
+
+    const handleUpload = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        setUploading(true);
+        Papa.parse(file, {
+            header: true,
+            complete: (results) => {
+                const updated = { ...campaigns };
+                const newDates = new Set();
+                const affected = new Set();
+
+                // Detect ASA format
+                const isASA = results.data[0] && results.data[0].hasOwnProperty('Adset') && results.data[0].hasOwnProperty('af_subscribe');
+                
+                results.data.forEach(row => {
+                    let name, date;
+                    
+                    if (isASA) {
+                        // Apple Search Ads format
+                        const adset = row['Adset'];
+                        date = row['Date'];
+                        if (!adset || !date) return;
+                        name = 'ASA Campaign ' + adset;
+                        
+                        if (!updated[name]) updated[name] = { name, platform: 'ASA', dailyData: {} };
+                        if (!updated[name].dailyData[date]) newDates.add(date);
+                        
+                        const installs = parseInt(row['Installs appsflyer']) || 0;
+                        const trials = parseInt(row['af_subscribe']) || 0;
+                        const modeledPaidSubs = trials * 0.40;
+                        
+                        updated[name].dailyData[date] = {
+                            spend: parseFloat(row['Cost']) || 0,
+                            clicks: 0,
+                            cpc: 0,
+                            impressions: 0,
+                            installs,
+                            trials,
+                            modeledPaidSubs
+                        };
+                        affected.add(name);
+                        return;
+                    }
+                    
+                    // Reddit format
+                    name = row['Campaign Name'];
+                    date = row['Date'];
+                    if (!name || !date || name.trim() === '') return;
+
+                    if (!updated[name]) updated[name] = { name, dailyData: {} };
+                    if (!updated[name].dailyData[date]) newDates.add(date);
+
+                    // Column mapping:
+                    // (MMP) Total App Installs = installs
+                    // (MMP) App Purchases = trials (started trial / hit paywall)
+                    // (MMP) App Subscribe = paid subs (actual paying users)
+                    // modeledPaidSubs = trials * 40% (from financial model - we don't get this from AppsFlyer)
+                    const installs = parseInt(row['(MMP) Total App Installs']) || 0;
+                    const trials = parseInt(row['(MMP) App Purchases']) || 0;
+                    const modeledPaidSubs = trials * 0.40; // 40% trial→paid from financial model
+
+                    updated[name].dailyData[date] = {
+                        spend: parseFloat(row['Amount Spent (USD)']) || 0,
+                        clicks: parseInt(row['Clicks']) || 0,
+                        cpc: parseFloat(row['CPC (USD)']) || 0,
+                        impressions: parseInt(row['Impressions']) || 0,
+                        installs,
+                        trials,
+                        modeledPaidSubs
+                    };
+                    affected.add(name);
+                });
+
+                // Create snapshot
+                const snapshot = {
+                    date: new Date().toISOString().split('T')[0],
+                    time: new Date().toLocaleTimeString(),
+                    timestamp: new Date().toISOString(),
+                    campaigns: {}
+                };
+                Object.keys(updated).forEach(name => {
+                    const m = getMetrics(updated[name], settings);
+                    if (m) snapshot.campaigns[name] = { cpa: m.cpa, cpc: m.cpc, cvr: m.cvr, conversions: m.conversions, spend: m.spend };
+                });
+
+                const newSnapshots = [snapshot, ...snapshots].slice(0, 100);
+                const newLog = [{
+                    date: new Date().toISOString().split('T')[0],
+                    time: new Date().toLocaleTimeString(),
+                    type: 'upload',
+                    description: `Uploaded ${affected.size} campaigns, ${newDates.size} new dates`
+                }, ...changelog];
+
+                setCampaigns(updated);
+                setSnapshots(newSnapshots);
+                setChangelog(newLog);
+                save('pubrev-spider-campaigns', updated);
+                save('pubrev-spider-snapshots', newSnapshots);
+                save('pubrev-spider-changelog', newLog);
+                setUploading(false);
+                setTab('dashboard');
+            },
+            error: () => { alert('Error parsing CSV'); setUploading(false); }
+        });
+    };
+
+    const getMetrics = (campaign, s, days = null) => {
+        if (!campaign?.dailyData) return null;
+        let dates = Object.keys(campaign.dailyData).sort();
+        if (!dates.length) return null;
+
+        if (days && days !== 'all') {
+            const cutoff = new Date();
+            cutoff.setDate(cutoff.getDate() - days);
+            const cutoffStr = cutoff.toISOString().split('T')[0];
+            dates = dates.filter(d => d >= cutoffStr);
+        }
+        if (!dates.length) return null;
+
+        let spend = 0, clicks = 0, impressions = 0, installs = 0, trials = 0, modeledPaidSubs = 0;
+        dates.forEach(d => {
+            const day = campaign.dailyData[d];
+            spend += day.spend;
+            clicks += day.clicks;
+            impressions += day.impressions || 0;
+            installs += day.installs || 0;
+            trials += day.trials || 0;
+            modeledPaidSubs += day.modeledPaidSubs || 0;
+        });
+
+        // Opt-in rate = trials / installs (live from campaign data)
+        const optInRate = installs > 0 ? trials / installs : 0;
+        // Conversions = modeled paid subs (trials * 40%)
+        const conversions = modeledPaidSubs;
+        const daysCount = dates.length;
+
+        return {
+            name: campaign.name,
+            dailyData: campaign.dailyData,
+            dates,
+            spend,
+            clicks,
+            impressions,
+            installs,
+            trials,
+            modeledPaidSubs,
+            conversions,
+            optInRate,
+            // CPA = spend / modeled paid subs (trials * 40%)
+            cpa: conversions > 0 ? spend / conversions : 0,
+            cpc: clicks > 0 ? spend / clicks : 0,
+            cpi: installs > 0 ? spend / installs : 0,
+            ctr: impressions > 0 ? clicks / impressions * 100 : 0,
+            // CVR = trials / clicks (click to trial rate)
+            cvr: clicks > 0 ? trials / clicks * 100 : 0,
+            daysCount,
+            avgClicks: daysCount > 0 ? clicks / daysCount : 0,
+            inLearning: conversions < s.learningThreshold,
+            lowVolume: (daysCount > 0 ? clicks / daysCount : 0) < s.minDailyClicks,
+            startDate: dates[0],
+            endDate: dates[dates.length - 1]
+        };
+    };
+
+    const getBroadLearnings = (name) => {
+        const meta = campaignMeta[name];
+        if (!meta?.learningSource) return null;
+        const broad = campaigns[meta.learningSource];
+        if (!broad) return null;
+        const bm = getMetrics(broad, settings, 7);
+        if (!bm) return null;
+        const recent = bm.dates.slice(-settings.stabilityDays);
+        const cpcs = recent.map(d => broad.dailyData[d].cpc);
+        const avg = cpcs.reduce((a, b) => a + b, 0) / cpcs.length;
+        const stable = cpcs.every(c => Math.abs(c - avg) / avg <= settings.stabilityTolerance);
+        return { broadName: meta.learningSource, metrics: bm, avgCPC: avg, stable, stableDays: cpcs.length, requiredDays: settings.stabilityDays };
+    };
+
+    const getRec = (m, broad) => {
+        if (!m || m.conversions === 0) return { action: 'monitor', msg: 'No conversions yet. Keep monitoring.', priority: 'low' };
+        
+        if (broad?.stable && m.cpc < broad.avgCPC * 0.8) {
+            return { action: 'increase', msg: `Broad stable at $${broad.avgCPC.toFixed(2)} with $${broad.metrics.cpa.toFixed(2)} CPA. Increase CPC to match.`, rec: broad.avgCPC.toFixed(2), priority: 'high' };
+        }
+        if (m.inLearning) {
+            if (m.lowVolume) return { action: 'increase', msg: `Learning phase: Need more volume. Increase CPC to get above ${settings.minDailyClicks} clicks/day.`, priority: 'high' };
+            return { action: 'maintain', msg: `Learning phase: Volume good (${m.avgClicks.toFixed(0)} clicks/day). Maintain CPC until ${settings.learningThreshold} conversions.`, priority: 'medium' };
+        }
+        if (m.cpa > settings.maxCPA) return { action: 'pause', msg: `CPA $${m.cpa.toFixed(2)} exceeds max $${settings.maxCPA}. Consider pausing or major changes.`, priority: 'critical' };
+        if (m.cpa > settings.targetCPA * 1.3 && !m.lowVolume) {
+            const recCPC = (settings.targetCPA * m.cvr / 100).toFixed(2);
+            return { action: 'decrease', msg: `CPA ${((m.cpa / settings.targetCPA - 1) * 100).toFixed(0)}% above target. Decrease CPC.`, rec: recCPC, cur: m.cpc.toFixed(2), priority: 'medium' };
+        }
+        if (m.cpa < settings.targetCPA * 0.8) return { action: 'scale', msg: `CPA below target! Room to scale. Consider increasing budget or CPC.`, priority: 'low' };
+        return { action: 'maintain', msg: `On track. CPA $${m.cpa.toFixed(2)}, ${m.avgClicks.toFixed(0)} clicks/day.`, priority: 'low' };
+    };
+
+    const updateMeta = (name, updates) => {
+        const updated = { ...campaignMeta, [name]: { ...campaignMeta[name], ...updates } };
+        setCampaignMeta(updated);
+        save('spider-meta', updated);
+    };
+
+    const updateSettings = (s) => {
+        setSettings(s);
+        save('pubrev-spider-settings', s);
+    };
+
+    const campaignList = Object.keys(campaigns).map(n => getMetrics(campaigns[n], settings)).filter(Boolean);
+    const totals = campaignList.reduce((a, c) => ({ spend: a.spend + c.spend, clicks: a.clicks + c.clicks, conversions: a.conversions + c.conversions }), { spend: 0, clicks: 0, conversions: 0 });
+    const overallCPA = totals.conversions > 0 ? totals.spend / totals.conversions : 0;
+
+    return (
+        <div className="min-h-screen bg-gray-50">
+            <div className="max-w-7xl mx-auto px-4 py-8">
+                <div className="mb-6 flex items-center justify-between">
+                    <div>
+                        <h1 className="text-3xl font-bold text-gray-900">PubRev+ Studio Modeling
+                            <span className="ml-3 text-sm font-normal bg-blue-600 text-white px-3 py-1 rounded-full">v4</span>
+                        </h1>
+                        <p className="text-gray-500 mt-1">PubRev+ Performance Dashboard</p>
+                    </div>
+                    <div className="text-right text-sm text-gray-500">
+                        <div>{campaignList.length} campaigns</div>
+                        <div className="text-xs text-green-600">{snapshots.length} snapshots</div>
+                    </div>
+                </div>
+
+                <div className="bg-white rounded-xl shadow-sm">
+                    <div className="border-b border-gray-200">
+                        <nav className="flex px-6">
+                            {['dashboard', 'campaigns', 'financial', 'history', 'settings', 'upload'].map(t => (
+                                <button key={t} onClick={() => setTab(t)}
+                                    className={"py-4 px-4 border-b-2 font-medium text-sm capitalize mr-2 " + (tab === t ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700')}>
+                                    {t}
+                                </button>
+                            ))}
+                        </nav>
+                    </div>
+
+                    <div className="p-6">
+                        {tab === 'dashboard' && <Dashboard campaigns={campaignList} settings={settings} snapshots={snapshots} totals={totals} overallCPA={overallCPA} />}
+                        {tab === 'campaigns' && <Campaigns campaigns={campaignList} campaignMeta={campaignMeta} campaigns_raw={campaigns} settings={settings} timeframes={timeframes} setTimeframes={setTimeframes} getMetrics={getMetrics} getRec={getRec} getBroadLearnings={getBroadLearnings} updateMeta={updateMeta} />}
+                        {tab === 'financial' && <Financial campaigns={campaignList} settings={settings} />}
+                        {tab === 'history' && <History campaigns={campaignList} snapshots={snapshots} changelog={changelog} />}
+                        {tab === 'settings' && <Settings settings={settings} updateSettings={updateSettings} />}
+                        {tab === 'upload' && <Upload handleUpload={handleUpload} uploading={uploading} />}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function Dashboard({ campaigns, settings, snapshots, totals, overallCPA }) {
+    const chartRef = useRef(null);
+    const chartInst = useRef(null);
+
+    useEffect(() => {
+        if (!campaigns.length || !chartRef.current) return;
+        const daily = {};
+        campaigns.forEach(c => {
+            c.dates.forEach(d => {
+                const day = c.dailyData[d];
+                if (!daily[d]) daily[d] = { spend: 0, conversions: 0 };
+                daily[d].spend += day.spend;
+                daily[d].conversions += day.modeledPaidSubs || 0;
+            });
+        });
+        const dates = Object.keys(daily).sort();
+        const cpas = dates.map(d => daily[d].conversions > 0 ? daily[d].spend / daily[d].conversions : null);
+
+        if (chartInst.current) chartInst.current.destroy();
+        chartInst.current = new Chart(chartRef.current, {
+            type: 'line',
+            data: {
+                labels: dates,
+                datasets: [
+                    { label: 'Daily CPA', data: cpas, borderColor: 'rgb(59,130,246)', backgroundColor: 'rgba(59,130,246,0.1)', tension: 0.3, fill: true },
+                    { label: 'Target CPA', data: dates.map(() => settings.targetCPA), borderColor: 'rgb(34,197,94)', borderDash: [5,5], fill: false }
+                ]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { position: 'top' } },
+                scales: { y: { ticks: { callback: v => '$' + (v||0).toFixed(2) } } }
+            }
+        });
+        return () => { if (chartInst.current) chartInst.current.destroy(); };
+    }, [campaigns, settings.targetCPA]);
+
+    if (!campaigns.length) return (
+        <div className="text-center py-16">
+            <div className="text-5xl mb-4">📊</div>
+            <div className="text-xl font-semibold text-gray-700 mb-2">No data yet</div>
+            <div className="text-gray-500">Upload your Reddit Ads CSV to get started</div>
+        </div>
+    );
+
+    const cpaColor = overallCPA > settings.targetCPA ? 'text-red-600' : 'text-green-600';
+
+    return (
+        <div className="space-y-6">
+            {campaigns.some(c => c.inLearning) && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-center gap-3">
+                    <span className="text-2xl">🔄</span>
+                    <div>
+                        <div className="font-semibold text-blue-900">{campaigns.filter(c => c.inLearning).length} campaign(s) in learning phase</div>
+                        <div className="text-sm text-blue-700">Prioritize volume over efficiency until {settings.learningThreshold} conversions</div>
+                    </div>
+                </div>
+            )}
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-gray-50 rounded-lg p-4">
+                    <div className="text-sm text-gray-500">Total Spend</div>
+                    <div className="text-2xl font-bold">${totals.spend.toFixed(2)}</div>
+                    <div className="text-xs text-gray-400">{totals.clicks.toLocaleString()} clicks</div>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-4">
+                    <div className="text-sm text-gray-500">Conversions</div>
+                    <div className="text-2xl font-bold">{totals.conversions}</div>
+                    <div className="text-xs text-gray-400">{campaigns.length} campaigns</div>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-4">
+                    <div className="text-sm text-gray-500">Overall CPA</div>
+                    <div className={"text-2xl font-bold " + (cpaColor)}>${overallCPA.toFixed(2)}</div>
+                    <div className="text-xs text-gray-400">Target: ${settings.targetCPA.toFixed(2)}</div>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-4">
+                    <div className="text-sm text-gray-500">Snapshots</div>
+                    <div className="text-2xl font-bold">{snapshots.length}</div>
+                    <div className="text-xs text-gray-400">history tracked</div>
+                </div>
+            </div>
+
+            <div>
+                <h2 className="text-lg font-semibold mb-3">CPA Trend</h2>
+                <div className="border border-gray-200 rounded-lg p-4" style={{height: '350px'}}>
+                    <canvas ref={chartRef}></canvas>
+                </div>
+            </div>
+
+            <div>
+                <h2 className="text-lg font-semibold mb-3">Campaign Overview</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {campaigns.map(c => (
+                        <div key={c.name} className={"border rounded-lg p-4 " + (c.inLearning ? 'bg-blue-50 border-blue-200' : 'bg-white border-gray-200')}>
+                            <div className="flex items-center justify-between mb-2">
+                                <div className="font-medium text-sm truncate flex-1">{c.name}</div>
+                                {c.inLearning && <span className="ml-2 text-xs bg-blue-600 text-white px-2 py-0.5 rounded">Learning</span>}
+                            </div>
+                            <div className="grid grid-cols-3 gap-2 text-xs">
+                                <div>
+                                    <div className="text-gray-500">CPA</div>
+                                    <div className={"font-bold " + (c.cpa > settings.targetCPA ? 'text-red-600' : 'text-green-600')}>
+                                        {c.cpa > 0 ? '$' + c.cpa.toFixed(2) : 'N/A'}
+                                    </div>
+                                </div>
+                                <div>
+                                    <div className="text-gray-500">Conversions</div>
+                                    <div className="font-bold">{c.conversions}/{settings.learningThreshold}</div>
+                                </div>
+                                <div>
+                                    <div className="text-gray-500">Clicks/day</div>
+                                    <div className={"font-bold " + (c.lowVolume ? 'text-orange-600' : 'text-gray-900')}>{c.avgClicks.toFixed(0)}</div>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+
+    const calculateHealthScore = (m, settings) => {
+        let breakdown = {};
+        
+        // CPA Score (0-25): Distance from target
+        const cpaRatio = m.cpa / (settings.targetCPA || 2.50);
+        breakdown.cpa = cpaRatio <= 1 ? 25 : Math.max(0, 25 - (cpaRatio - 1) * 25);
+        
+        // Volume Score (0-25): Click volume vs minimum
+        const volRatio = m.avgClicks / (settings.minDailyClicks || 20);
+        breakdown.volume = Math.min(25, volRatio * 25);
+        
+        // Stability Score (0-25): Based on learning phase and data quality
+        breakdown.stability = m.inLearning ? 10 : m.lowVolume ? 15 : 25;
+        
+        // ROI Score (0-25): Based on CPA vs target (rough proxy for ROAS)
+        const roiRatio = (settings.targetCPA || 2.50) / Math.max(m.cpa, 0.01);
+        breakdown.roi = Math.min(25, roiRatio * 25);
+        
+        const score = Math.round(Object.values(breakdown).reduce((a,b) => a+b, 0));
+        const color = score >= 70 ? 'green' : score >= 40 ? 'yellow' : 'red';
+        const emoji = score >= 70 ? '🟢' : score >= 40 ? '🟡' : '🔴';
+        
+        return { score, breakdown, color, emoji };
+    };
+
+
+function Campaigns({ campaigns, campaignMeta, campaigns_raw, settings, timeframes, setTimeframes, getMetrics, getRec, getBroadLearnings, updateMeta }) {
+    const [showSettings, setShowSettings] = useState({});
+    const tfOptions = [{ v: 3, l: '3 days' }, { v: 7, l: '7 days' }, { v: 14, l: '14 days' }, { v: 30, l: '30 days' }, { v: 'all', l: 'All time' }];
+
+    if (!campaigns.length) return (
+        <div className="text-center py-16">
+            <p className="text-gray-500">No campaigns yet. Upload a CSV first!</p>
+        </div>
+    );
+
+    return (
+        <div className="space-y-5">
+            <h2 className="text-xl font-semibold">Campaign Analysis</h2>
+            {campaigns.map(campaign => {
+                const meta = campaignMeta[campaign.name] || {};
+                const tf = timeframes[campaign.name] || 7;
+                const m = getMetrics(campaigns_raw[campaign.name], settings, tf);
+                if (!m) return null;
+                const broad = meta.type === 'fixed' ? getBroadLearnings(campaign.name) : null;
+                const rec = getRec(m, broad);
+
+                return (
+                    <div key={campaign.name} className="bg-white border border-gray-200 rounded-xl p-6">
+                        {/* Header */}
+                        <div className="flex items-center gap-2 mb-4">
+                            <h3 className="font-semibold text-gray-900">{campaign.name}</h3>
+                            {meta.type === 'broad' && <span className="text-xs bg-green-600 text-white px-2 py-0.5 rounded">🎓 Broad</span>}
+                            {meta.type === 'fixed' && <span className="text-xs bg-purple-600 text-white px-2 py-0.5 rounded">🎯 Fixed CPC</span>}
+                            {m.inLearning && <span className="text-xs bg-blue-600 text-white px-2 py-0.5 rounded">🔄 Learning</span>}
+                            {m.lowVolume && <span className="text-xs bg-orange-600 text-white px-2 py-0.5 rounded">⚠️ Low Volume</span>}
+                            {(() => {
+                                const health = calculateHealthScore(m, settings);
+                                const bgColor = health.color === 'green' ? 'bg-green-100 border-green-300' : health.color === 'yellow' ? 'bg-yellow-100 border-yellow-300' : 'bg-red-100 border-red-300';
+                                const textColor = health.color === 'green' ? 'text-green-900' : health.color === 'yellow' ? 'text-yellow-900' : 'text-red-900';
+                                return (
+                                    <div className={"ml-auto flex items-center gap-2 px-3 py-1 rounded-lg border " + bgColor}>
+                                        <div className="text-xs text-gray-600">Health:</div>
+                                        <div className={"text-sm font-bold " + textColor}>{health.emoji} {health.score}/100</div>
+                                        <div className="text-xs text-gray-500">
+                                            (CPA:{Math.round(health.breakdown.cpa)} Vol:{Math.round(health.breakdown.volume)} Stb:{Math.round(health.breakdown.stability)} ROI:{Math.round(health.breakdown.roi)})
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+                            <button onClick={() => setShowSettings({...showSettings, [campaign.name]: !showSettings[campaign.name]})}
+                                className="text-xs text-gray-400 hover:text-gray-600">⚙️ Settings</button>
+                        </div>
+
+                        {/* Campaign Settings Panel */}
+                        {showSettings[campaign.name] && (
+                            <div className="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200 text-sm space-y-2">
+                                <div>
+                                    <label className="text-xs text-gray-600 block mb-1">Campaign Type</label>
+                                    <select value={meta.type || 'standard'} onChange={e => updateMeta(campaign.name, { type: e.target.value })}
+                                        className="border border-gray-300 rounded px-2 py-1 text-sm">
+                                        <option value="standard">Standard</option>
+                                        <option value="broad">Broad Test</option>
+                                        <option value="fixed">Fixed CPC</option>
+                                    </select>
+                                </div>
+                                {meta.type === 'fixed' && (
+                                    <div>
+                                        <label className="text-xs text-gray-600 block mb-1">Learn From</label>
+                                        <select value={meta.learningSource || ''} onChange={e => updateMeta(campaign.name, { learningSource: e.target.value })}
+                                            className="border border-gray-300 rounded px-2 py-1 text-sm w-full">
+                                            <option value="">None</option>
+                                            {campaigns.filter(c => campaignMeta[c.name]?.type === 'broad').map(c => (
+                                                <option key={c.name} value={c.name}>{c.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Metrics */}
+                        <div className="grid grid-cols-3 md:grid-cols-6 gap-3 mb-4 text-sm">
+                            <div>
+                                <div className="text-gray-500 text-xs">Spend</div>
+                                <div className="font-semibold">${m.spend.toFixed(2)}</div>
+                            </div>
+                            <div>
+                                <div className="text-gray-500 text-xs">Installs</div>
+                                <div className="font-semibold">{m.installs || 0}</div>
+                            </div>
+                            <div>
+                                <div className="text-gray-500 text-xs">Trials</div>
+                                <div className="font-semibold">{m.trials || 0}</div>
+                            </div>
+                            <div>
+                                <div className="text-gray-500 text-xs">Modeled Paid</div>
+                                <div className="font-semibold text-blue-700">{Math.round(m.modeledPaidSubs || 0)}</div>
+                                <div className="text-gray-400 text-xs">trials × 40%</div>
+                            </div>
+                            <div>
+                                <div className="text-gray-500 text-xs">CPA</div>
+                                <div className={"font-semibold " + (m.cpa > settings.targetCPA ? 'text-red-600' : 'text-green-600')}>
+                                    {(() => {
+                                        if (m.cpa === 0) return 'N/A';
+                                        const ratio = m.cpa / (settings.targetCPA || 2.50);
+                                        const emoji = ratio <= 1 ? '🟢' : ratio <= 1.5 ? '🟡' : '🔴';
+                                        const status = ratio <= 1 ? '✅ On target' : ratio <= 1.5 ? '⚠️ ' + (ratio).toFixed(1) + 'x over' : '🚨 ' + (ratio).toFixed(1) + 'x over';
+                                        return (
+                                            <div>
+                                                <div className="flex items-center gap-1">
+                                                    <span>{emoji}</span>
+                                                    <span>${m.cpa.toFixed(2)}</span>
+                                                </div>
+                                                <div className="text-xs mt-1">{status}</div>
+                                                {ratio > 1 && <div className="text-xs text-gray-500 mt-1">Need: ${(settings.targetCPA || 2.50).toFixed(2)}</div>}
+                                            </div>
+                                        );
+                                    })()}
+                                </div>
+                            </div>
+                            <div>
+                                <div className="text-gray-500 text-xs">Opt-In Rate</div>
+                                <div className="font-semibold">{m.optInRate > 0 ? (m.optInRate * 100).toFixed(1) + '%' : 'N/A'}</div>
+                            </div>
+                        </div>
+
+                        {/* Broad Learnings */}
+                        {broad && (
+                            <div className={"mb-4 p-4 rounded-lg border " + (broad.stable ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200')}>
+                                <div className="flex items-center justify-between mb-2">
+                                    <div className="font-semibold text-sm">🎓 Learning from: {broad.broadName}</div>
+                                    <span className={"text-xs px-2 py-0.5 rounded text-white " + (broad.stable ? 'bg-green-600' : 'bg-yellow-600')}>
+                                        {broad.stable ? `✅ Stable (${broad.stableDays}/${broad.requiredDays}d)` : `⏳ ${broad.stableDays}/${broad.requiredDays}d`}
+                                    </span>
+                                </div>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                                    <div>
+                                        <div className="text-xs text-gray-500">Broad CPC</div>
+                                        <div className="font-semibold">${broad.avgCPC.toFixed(2)}</div>
+                                    </div>
+                                    <div>
+                                        <div className="text-xs text-gray-500">Broad CPA</div>
+                                        <div className="font-semibold">${broad.metrics.cpa.toFixed(2)}</div>
+                                    </div>
+                                    <div>
+                                        <div className="text-xs text-gray-500">Your CPC</div>
+                                        <div className={"font-semibold " + (m.cpc < broad.avgCPC ? 'text-orange-600' : 'text-green-600')}>
+                                            ${m.cpc.toFixed(2)} ({((m.cpc / broad.avgCPC - 1) * 100).toFixed(0)}%)
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div className="text-xs text-gray-500">Your CPA</div>
+                                        <div className={"font-semibold " + (m.cpa > broad.metrics.cpa ? 'text-orange-600' : 'text-green-600')}>
+                                            ${m.cpa.toFixed(2)} ({((m.cpa / broad.metrics.cpa - 1) * 100).toFixed(0)}%)
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Recommendation */}
+                        <div className={"p-4 rounded-lg border mb-4 " + (
+                            rec.priority === 'critical' ? 'bg-red-50 border-red-300' :
+                            rec.priority === 'high' ? 'bg-orange-50 border-orange-200' :
+                            rec.priority === 'medium' ? 'bg-blue-50 border-blue-200' :
+                            'bg-green-50 border-green-200'
+                        )}>
+                            <div className="font-semibold text-sm mb-1">
+                                {rec.action === 'increase' || rec.action === 'scale' ? '⬆️ ' : 
+                                 rec.action === 'decrease' ? '⬇️ ' : 
+                                 rec.action === 'pause' ? '🛑 ' : '✅ '}
+                                {rec.action === 'increase' ? 'Increase CPC' :
+                                 rec.action === 'scale' ? 'Scale Up' :
+                                 rec.action === 'decrease' ? 'Decrease CPC' :
+                                 rec.action === 'pause' ? 'Pause / Optimize' :
+                                 rec.action === 'monitor' ? 'Monitor' : 'Maintain'}
+                            </div>
+                            <div className="text-sm text-gray-700">{rec.msg}</div>
+                            {rec.rec && (
+                                <div className="mt-2 text-sm">
+                                    {rec.cur && <span>Current: <strong>${rec.cur}</strong> → </span>}
+                                    Recommended: <strong className="text-blue-700">${rec.rec}</strong>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Timeframe selector */}
+                        <div className="flex items-center gap-2 text-sm">
+                            <span className="text-gray-500">Analyzing:</span>
+                            {tfOptions.map(o => (
+                                <button key={o.v}
+                                    onClick={() => setTimeframes({...timeframes, [campaign.name]: o.v})}
+                                    className={"px-3 py-1 rounded text-xs font-medium " + (tf === o.v ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200')}>
+                                    {o.l}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                );
+            })}
+        </div>
+    );
+}
+
+function History({ campaigns, snapshots, changelog }) {
+    const [selected, setSelected] = useState(campaigns[0]?.name || '');
+
+    const campSnaps = snapshots.filter(s => s.campaigns[selected]).map(s => ({
+        date: s.date, time: s.time, ...s.campaigns[selected]
+    }));
+
+    return (
+        <div className="space-y-6">
+            <div>
+                <h2 className="text-xl font-semibold mb-4">Performance History</h2>
+                <select value={selected} onChange={e => setSelected(e.target.value)}
+                    className="border border-gray-300 rounded-lg px-3 py-2">
+                    {campaigns.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
+                </select>
+            </div>
+
+            {campSnaps.length > 0 ? (
+                <div className="space-y-2">
+                    {campSnaps.map((s, i) => (
+                        <div key={i} className="bg-white border border-gray-200 rounded-lg p-4">
+                            <div className="grid grid-cols-4 gap-4 text-sm">
+                                <div>
+                                    <div className="text-xs text-gray-500">Date</div>
+                                    <div className="font-semibold">{s.date}</div>
+                                    <div className="text-xs text-gray-400">{s.time}</div>
+                                </div>
+                                <div>
+                                    <div className="text-xs text-gray-500">CPA</div>
+                                    <div className="font-semibold">${s.cpa?.toFixed(2)}</div>
+                                    {i < campSnaps.length - 1 && campSnaps[i+1]?.cpa > 0 && (
+                                        <div className={"text-xs " + (s.cpa < campSnaps[i+1].cpa ? 'text-green-600' : 'text-red-600')}>
+                                            {s.cpa < campSnaps[i+1].cpa ? '↓' : '↑'} {Math.abs(((s.cpa - campSnaps[i+1].cpa) / campSnaps[i+1].cpa) * 100).toFixed(1)}%
+                                        </div>
+                                    )}
+                                </div>
+                                <div>
+                                    <div className="text-xs text-gray-500">Conversions</div>
+                                    <div className="font-semibold">{s.conversions}</div>
+                                </div>
+                                <div>
+                                    <div className="text-xs text-gray-500">Spend</div>
+                                    <div className="font-semibold">${s.spend?.toFixed(2)}</div>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            ) : (
+                <p className="text-gray-500 text-sm">No snapshots yet for this campaign. Upload data to start tracking.</p>
+            )}
+
+            <div>
+                <h3 className="text-lg font-semibold mb-3">Activity Log</h3>
+                <div className="space-y-2">
+                    {changelog.map((entry, i) => (
+                        <div key={i} className="bg-white border border-gray-200 rounded-lg p-3">
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">{entry.type}</span>
+                                <span className="text-xs text-gray-500">{entry.date} {entry.time}</span>
+                            </div>
+                            <div className="text-sm text-gray-700 mt-1">{entry.description}</div>
+                        </div>
+                    ))}
+                    {!changelog.length && <p className="text-gray-500 text-sm">No activity yet.</p>}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function Settings({ settings, updateSettings }) {
+    const [s, setS] = useState(settings);
+    return (
+        <div className="space-y-6 max-w-xl">
+            <h2 className="text-xl font-semibold">Settings</h2>
+
+            {[
+                { key: 'targetCPA', label: 'Target CPA', prefix: '$', step: '0.01' },
+                { key: 'maxCPA', label: 'Max Acceptable CPA', prefix: '$', step: '0.01' },
+                { key: 'learningThreshold', label: 'Learning Phase Threshold', suffix: 'conversions', step: '1' },
+                { key: 'minDailyClicks', label: 'Min Daily Clicks', suffix: 'clicks/day', step: '1' },
+                { key: 'arppu', label: 'Monthly ARPPU (net of store cut)', prefix: '$', step: '0.01' },
+                { key: 'trialConvRate', label: 'Trial → Paid Conversion Rate', suffix: '%', step: '1', isPercent: true },
+                { key: 'apiCostPerSub', label: 'Reddit API Cost per Sub/Month', prefix: '$', step: '0.01' }
+            ].map(f => (
+                <div key={f.key}>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">{f.label}</label>
+                    <div className="flex items-center gap-2">
+                        {f.prefix && <span>{f.prefix}</span>}
+                        <input type="number" step={f.step} value={f.isPercent ? (s[f.key] || 0) * 100 : s[f.key]}
+                            onChange={e => setS({...s, [f.key]: f.isPercent ? parseFloat(e.target.value) / 100 : parseFloat(e.target.value)})}
+                            className="border border-gray-300 rounded-lg px-3 py-2 w-32" />
+                        {f.suffix && <span className="text-gray-500 text-sm">{f.suffix}</span>}
+                    </div>
+                </div>
+            ))}
+
+            <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">CPC Stability Requirement (Broad → Fixed)</label>
+                <select value={s.stabilityDays} onChange={e => setS({...s, stabilityDays: parseInt(e.target.value)})}
+                    className="border border-gray-300 rounded-lg px-3 py-2">
+                    <option value={1}>1 day (aggressive)</option>
+                    <option value={3}>3 days (recommended)</option>
+                    <option value={5}>5 days (conservative)</option>
+                    <option value={7}>7 days (very stable)</option>
+                </select>
+            </div>
+
+            <button onClick={() => updateSettings(s)}
+                className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">
+                Save Settings
+            </button>
+        </div>
+    );
+}
+
+function Upload({ handleUpload, uploading }) {
+    return (
+        <div className="space-y-6">
+            <h2 className="text-xl font-semibold">Upload Campaign Data</h2>
+            <div className="border-2 border-dashed border-gray-300 rounded-xl p-16 text-center">
+                <input type="file" accept=".csv" onChange={handleUpload} className="hidden" id="fu" disabled={uploading} />
+                <label htmlFor="fu" className="cursor-pointer">
+                    <div className="text-5xl mb-4">📊</div>
+                    <div className="text-lg font-semibold text-gray-800 mb-1">
+                        {uploading ? '⏳ Processing...' : 'Click to upload CSV'}
+                    </div>
+                    <div className="text-sm text-gray-500">Export from Reddit Ads Manager → Export → CSV</div>
+                </label>
+            </div>
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
+                <div className="font-semibold mb-1">✅ Smart data handling:</div>
+                <ul className="list-disc list-inside space-y-1">
+                    <li>Appends new dates automatically</li>
+                    <li>Updates existing dates if changed</li>
+                    <li>Never overwrites historical data</li>
+                    <li>Creates snapshot on every upload</li>
+                </ul>
+            </div>
+        </div>
+    );
+}
+
+function Financial({ campaigns, settings }) {
+    const cashChartRef = useRef(null);
+    const roasCurveRef = useRef(null);
+    const ltvChartRef = useRef(null);
+    const cashChartInst = useRef(null);
+    const roasCurveInst = useRef(null);
+    const ltvChartInst = useRef(null);
+
+    const MODEL = {
+        trialConvRate: 0.40, // hardcoded from financial model - not available from AppsFlyer
+        arppu: 2.70,
+        apiCostPerSub: 1.00,
+        subRetention: [1.000,0.676,0.587,0.531,0.494,0.474,0.460,0.449,0.444,0.438,0.431,0.404,0.400,0.400,0.400,0.400,0.400,0.400,0.400,0.400,0.400,0.400,0.400,0.400],
+        mauRetention: [1.000,0.1875,0.1804,0.1758,0.1725,0.1696,0.1682,0.1678,0.1706,0.1724,0.1752,0.1806,0.1806,0.1806,0.1806,0.1806,0.1806,0.1806,0.1806,0.1806,0.1806,0.1806,0.1806,0.1806],
+    };
+
+    // Campaign selection state - default to all
+    const [selectedCampaigns, setSelectedCampaigns] = useState([]);
+    const [showWorkings, setShowWorkings] = useState(false);
+    const [spendMultiplier, setSpendMultiplier] = useState(1);
+    const [monthlySpendOverride, setMonthlySpendOverride] = useState('');
+    const [activeRoasTab, setActiveRoasTab] = useState('table');
+    const [dateRange, setDateRange] = useState({ start: '', end: '' });
+    const [showGoals, setShowGoals] = useState(false);
+    const [showSettings, setShowSettings] = useState(false);
+    const [goals, setGoals] = useState({
+        roasMonths: 3,
+        roasTarget: 100,
+        paybackMonths: 6,
+        marginTarget: 30
+    });
+    const MONTHS = 24;
+
+    // Set all campaigns selected by default on load
+    useEffect(() => {
+        if (campaigns.length > 0 && selectedCampaigns.length === 0) {
+            setSelectedCampaigns(campaigns.map(c => c.name));
+        }
+    }, [campaigns]);
+
+    const toggleCampaign = (name) => {
+        setSelectedCampaigns(prev =>
+            prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]
+        );
+    };
+    const selectAll = () => setSelectedCampaigns(campaigns.map(c => c.name));
+    const selectNone = () => setSelectedCampaigns([]);
+
+    // Apply date filter to a campaign
+    const applyDateFilter = (camp) => {
+        if (!dateRange.start && !dateRange.end) return camp;
+        const filtered = {...camp, dailyData: {}};
+        Object.keys(camp.dailyData || {}).forEach(date => {
+            if (dateRange.start && date < dateRange.start) return;
+            if (dateRange.end && date > dateRange.end) return;
+            filtered.dailyData[date] = camp.dailyData[date];
+        });
+        let spend=0, clicks=0, impressions=0, installs=0, trials=0, modeledPaidSubs=0;
+        Object.values(filtered.dailyData).forEach(d => {
+            spend += d.spend;
+            clicks += d.clicks;
+            impressions += d.impressions || 0;
+            installs += d.installs || 0;
+            trials += d.trials || 0;
+            modeledPaidSubs += d.modeledPaidSubs || 0;
+        });
+        const dates = Object.keys(filtered.dailyData).sort();
+        return {...camp, dailyData: filtered.dailyData, spend, clicks, impressions, installs, trials, modeledPaidSubs,
+            conversions: modeledPaidSubs, optInRate: installs>0 ? trials/installs : 0,
+            cpa: modeledPaidSubs>0 ? spend/modeledPaidSubs : 0, cpi: installs>0 ? spend/installs : 0,
+            cpc: clicks>0 ? spend/clicks : 0, daysCount: dates.length, startDate: dates[0], endDate: dates[dates.length-1]};
+    };
+    
+    // Filter to selected campaigns and apply date filter
+    const activeCampaigns = campaigns.filter(c => selectedCampaigns.includes(c.name)).map(applyDateFilter);
+    const totalActualSpend = activeCampaigns.reduce((s, c) => s + c.spend, 0);
+    const totalActualConversions = activeCampaigns.reduce((s, c) => s + c.conversions, 0);
+    const totalInstalls = activeCampaigns.reduce((s, c) => s + (c.installs || 0), 0);
+    const totalTrials = activeCampaigns.reduce((s, c) => s + (c.trials || 0), 0);
+    // Live opt-in rate = trials / installs direct from campaign data
+    const liveOptInRate = totalInstalls > 0 ? totalTrials / totalInstalls : 0.4062;
+    const actualCPA = totalActualConversions > 0 ? totalActualSpend / totalActualConversions : 4.57;
+    // CPI = spend / actual installs
+    const cpi = totalInstalls > 0 ? totalActualSpend / totalInstalls : 0.74;
+    const daysOfData = activeCampaigns.length > 0 ? Math.max(...activeCampaigns.map(c => c.daysCount)) : 30;
+    const monthsOfData = daysOfData / 30;
+    const baseMonthlySpend = totalActualSpend > 0 ? totalActualSpend / Math.max(monthsOfData, 0.5) : 30000;
+    const projectedMonthlySpend = monthlySpendOverride !== '' ? parseFloat(monthlySpendOverride) || baseMonthlySpend : baseMonthlySpend * spendMultiplier;
+    const targetCPA = settings.targetCPA || 2.50;
+
+    const computeAcq = (spend) => {
+        const installs = spend / cpi;
+        const trials = installs * liveOptInRate;   // live opt-in rate from campaign data
+        const newSubs = trials * MODEL.trialConvRate; // 40% trial→paid from financial model
+        return { installs, trials, newSubs, cpa: newSubs > 0 ? spend / newSubs : 0 };
+    };
+
+    const buildProjection = (monthlySpend) => {
+        const cohorts = [];
+        const proj = [];
+        for (let m = 0; m < MONTHS; m++) {
+            const acq = computeAcq(monthlySpend);
+            cohorts.push({ month: m, newSubs: acq.newSubs, installs: acq.installs });
+            let mau = 0, activeSubs = 0, mrr = 0;
+            cohorts.forEach(cohort => {
+                const offset = m - cohort.month;
+                const mauRet = MODEL.mauRetention[offset] !== undefined ? MODEL.mauRetention[offset] : MODEL.mauRetention[MODEL.mauRetention.length - 1];
+                const subRet = MODEL.subRetention[offset] !== undefined ? MODEL.subRetention[offset] : MODEL.subRetention[MODEL.subRetention.length - 1];
+                mau += cohort.installs * mauRet;
+                const subs = cohort.newSubs * subRet;
+                activeSubs += subs;
+                mrr += subs * MODEL.arppu;
+            });
+            const apiCost = activeSubs * 1.00; // $1 per active paying sub
+            const totalCost = monthlySpend + apiCost;
+            const netCF = mrr - totalCost;
+            const margin = mrr > 0 ? ((mrr - totalCost) / mrr * 100) : 0;
+            proj.push({ month: m + 1, installs: Math.round(acq.installs), newSubs: Math.round(acq.newSubs), activeSubs: Math.round(activeSubs), mrr, adSpend: monthlySpend, apiCost, totalCost, netCF, cumCF: 0, margin });
+        }
+        let cum = 0;
+        proj.forEach(p => { cum += p.netCF; p.cumCF = cum; });
+        return proj;
+    };
+
+    const cohortROAS = (monthlySpend, numMonths) => {
+        const acq = computeAcq(monthlySpend);
+        let totalRevenue = 0;
+        let totalApiCost = 0;
+        for (let i = 0; i < numMonths; i++) {
+            const ret = MODEL.subRetention[i] !== undefined ? MODEL.subRetention[i] : MODEL.subRetention[MODEL.subRetention.length - 1];
+            const activeSubs = acq.newSubs * ret;
+            totalRevenue += activeSubs * MODEL.arppu;
+            totalApiCost += activeSubs * 1.00;
+        }
+        return { roas: totalRevenue / (monthlySpend + totalApiCost), revenue: totalRevenue, apiCost: totalApiCost, subs: acq.newSubs };
+    };
+
+    const ltvCurve = Array.from({ length: 24 }, (_, i) =>
+        Array.from({ length: i + 1 }, (_, j) => {
+            const ret = MODEL.subRetention[j] !== undefined ? MODEL.subRetention[j] : MODEL.subRetention[MODEL.subRetention.length - 1];
+            return ret * MODEL.arppu;
+        }).reduce((a, b) => a + b, 0)
+    );
+
+    const acq = computeAcq(projectedMonthlySpend);
+    const proj = buildProjection(projectedMonthlySpend);
+    const breakEvenMonth = proj.find(p => p.cumCF >= 0);
+    const paybackMonth = Array.from({ length: 24 }, (_, i) => ({ month: i + 1, roas: cohortROAS(projectedMonthlySpend, i + 1).roas })).find(r => r.roas >= 1);
+
+    const scenarioCurrent = Array.from({ length: 24 }, (_, i) => ({ month: i + 1, roas: cohortROAS(projectedMonthlySpend, i + 1).roas * 100 }));
+    const targetSpend = acq.newSubs > 0 ? acq.newSubs * targetCPA : projectedMonthlySpend;
+    const scenarioTarget = Array.from({ length: 24 }, (_, i) => {
+        const acqT = computeAcq(targetSpend);
+        const rev = Array.from({ length: i + 1 }, (_, j) => {
+            const ret = MODEL.subRetention[j] !== undefined ? MODEL.subRetention[j] : MODEL.subRetention[MODEL.subRetention.length - 1];
+            return acqT.newSubs * ret * MODEL.arppu;
+        }).reduce((a, b) => a + b, 0);
+        return { month: i + 1, roas: (rev / targetSpend) * 100 };
+    });
+
+    const roasTable = Array.from({ length: 24 }, (_, i) => {
+        const r = cohortROAS(projectedMonthlySpend, i + 1);
+        return { month: i + 1, roas: r.roas, revenue: r.revenue };
+    });
+
+    const fmtK = (n) => {
+        const abs = Math.abs(n);
+        const sign = n < 0 ? '-' : '';
+        return abs >= 1000 ? sign + '$' + (abs / 1000).toFixed(1) + 'k' : sign + '$' + abs.toFixed(0);
+    };
+    const fmtN = (n) => n >= 1000 ? (n / 1000).toFixed(1) + 'k' : Math.round(n).toString();
+    const fmt2 = (n) => '$' + n.toFixed(2);
+
+    useEffect(() => {
+        if (!activeCampaigns.length && campaigns.length > 0) return;
+
+        // Cash flow chart
+        if (cashChartRef.current) {
+            if (cashChartInst.current) cashChartInst.current.destroy();
+            cashChartInst.current = new Chart(cashChartRef.current, {
+                type: 'bar',
+                data: {
+                    labels: proj.map(p => 'M' + p.month),
+                    datasets: [
+                        { label: 'MRR', data: proj.map(p => p.mrr), backgroundColor: 'rgba(34,197,94,0.8)' },
+                        { label: 'Ad Spend', data: proj.map(p => -p.adSpend), backgroundColor: 'rgba(239,68,68,0.8)' },
+                        { label: 'API Cost', data: proj.map(p => -p.apiCost), backgroundColor: 'rgba(251,146,60,0.8)' },
+                        { label: 'Net CF', data: proj.map(p => p.netCF), backgroundColor: 'rgba(156,163,175,0.4)' },
+                        { label: 'Cumulative CF', data: proj.map(p => p.cumCF), type: 'line', borderColor: 'rgb(59,130,246)', borderWidth: 3, fill: false, tension: 0.3, pointRadius: 4 }
+                    ]
+                },
+                options: { 
+                    responsive: true, 
+                    maintainAspectRatio: false, 
+                    plugins: { 
+                        legend: { position: 'top' },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) label += ': ';
+                                    label += fmtK(context.parsed.y);
+                                    return label;
+                                }
+                            }
+                        }
+                    }, 
+                    scales: { 
+                        y: { 
+                            ticks: { callback: v => fmtK(v) },
+                            grid: { color: context => context.tick.value === 0 ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0.1)' }
+                        } 
+                    } 
+                }
+            });
+        }
+
+        // ROAS curve chart - only when that tab is active
+        if (roasCurveRef.current && activeRoasTab === 'curve') {
+            if (roasCurveInst.current) roasCurveInst.current.destroy();
+            roasCurveInst.current = new Chart(roasCurveRef.current, {
+                type: 'line',
+                data: {
+                    labels: Array.from({ length: 24 }, (_, i) => 'M' + (i + 1)),
+                    datasets: [
+                        { label: 'Current CPA (' + fmt2(acq.cpa) + ')', data: scenarioCurrent.map(r => r.roas), borderColor: 'rgb(239,68,68)', backgroundColor: 'rgba(239,68,68,0.1)', fill: true, tension: 0.3, borderWidth: 2 },
+                        { label: 'Target CPA ($' + targetCPA.toFixed(2) + ')', data: scenarioTarget.map(r => r.roas), borderColor: 'rgb(34,197,94)', backgroundColor: 'rgba(34,197,94,0.1)', fill: true, tension: 0.3, borderWidth: 2 },
+                        { label: 'Break-even (100%)', data: Array(24).fill(100), borderColor: 'rgb(107,114,128)', borderDash: [6, 3], fill: false, borderWidth: 1.5 }
+                    ]
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' } }, scales: { y: { ticks: { callback: v => v + '%' } } } }
+            });
+        }
+
+        // LTV chart
+        if (ltvChartRef.current) {
+            if (ltvChartInst.current) ltvChartInst.current.destroy();
+            ltvChartInst.current = new Chart(ltvChartRef.current, {
+                type: 'line',
+                data: {
+                    labels: Array.from({ length: 24 }, (_, i) => 'M' + (i + 1)),
+                    datasets: [
+                        { label: 'Cumulative LTV per subscriber', data: ltvCurve, borderColor: 'rgb(139,92,246)', backgroundColor: 'rgba(139,92,246,0.1)', fill: true, tension: 0.3, borderWidth: 2 },
+                        { label: 'Current CPA (' + fmt2(acq.cpa) + ')', data: Array(24).fill(acq.cpa), borderColor: 'rgb(239,68,68)', borderDash: [6, 3], fill: false, borderWidth: 2 },
+                        { label: 'Target CPA ($' + targetCPA.toFixed(2) + ')', data: Array(24).fill(targetCPA), borderColor: 'rgb(34,197,94)', borderDash: [6, 3], fill: false, borderWidth: 2 }
+                    ]
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' } }, scales: { y: { ticks: { callback: v => '$' + v.toFixed(2) } } } }
+            });
+        }
+
+        return () => {
+            [cashChartInst, roasCurveInst, ltvChartInst].forEach(r => { if (r.current) r.current.destroy(); });
+        };
+    }, [projectedMonthlySpend, spendMultiplier, monthlySpendOverride, activeRoasTab, selectedCampaigns]);
+
+    if (campaigns.length === 0) {
+        return (
+            <div className="text-center py-16">
+                <div className="text-5xl mb-4">📊</div>
+                <div className="text-lg font-semibold text-gray-700">Upload campaign data first</div>
+                <div className="text-gray-500 text-sm mt-2">Financial projections need campaign data to calculate CPI and spend rates</div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-8">
+
+            {/* Header */}
+            <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold">Financial Projections</h2>
+                <div className="flex gap-2">
+                    <button onClick={() => setShowGoals(!showGoals)}
+                        className="text-sm px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 font-medium">
+                        {showGoals ? '▼ Hide Goals' : '🎯 Goals'}
+                    </button>
+                    <button onClick={() => setShowSettings(!showSettings)}
+                        className="text-sm px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 font-medium">
+                        {showSettings ? '▼ Hide Settings' : '⚙️ Settings'}
+                    </button>
+                    <button onClick={() => setShowWorkings(!showWorkings)}
+                        className="text-sm px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 font-medium">
+                        {showWorkings ? '▼ Hide Workings' : '▶ Show Workings'}
+                    </button>
+                </div>
+            </div>
+
+            {/* Settings Panel */}
+            {showSettings && (
+                <div className="bg-white border border-gray-200 rounded-xl p-5">
+                    <h3 className="font-semibold mb-4">⚙️ Model Settings</h3>
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4 text-sm text-yellow-800">
+                        ⚠️ Changes here will recalculate all projections. Current values are from your financial model.
+                    </div>
+                    <div className="grid grid-cols-3 gap-6">
+                        <div>
+                            <label className="block text-sm font-medium mb-2">Monthly ARPPU ($/month)</label>
+                            <div className="text-2xl font-bold text-green-600 mb-1">${(settings.arppu || 2.70).toFixed(2)}</div>
+                            <div className="text-xs text-gray-500">Net of 30% App Store cut</div>
+                            <div className="text-xs text-green-600 mt-2">✅ Editable in Settings tab</div>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-2">Trial → Paid Conversion Rate</label>
+                            <div className="text-2xl font-bold text-green-600 mb-1">{((settings.trialConvRate || 0.40) * 100).toFixed(0)}%</div>
+                            <div className="text-xs text-gray-500">From financial model</div>
+                            <div className="text-xs text-green-600 mt-2">✅ Editable in Settings tab</div>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-2">Reddit API Cost ($/sub/month)</label>
+                            <div className="text-2xl font-bold text-green-600 mb-1">${(settings.apiCostPerSub || 1.00).toFixed(2)}</div>
+                            <div className="text-xs text-gray-500">Per active subscriber</div>
+                            <div className="text-xs text-green-600 mt-2">✅ Editable in Settings tab</div>
+                        </div>
+                    </div>
+                    <div className="mt-4 p-3 bg-green-50 rounded-lg text-sm text-green-800">
+                        ✅ These settings are now editable! Go to the Settings tab to change them.
+                    </div>
+                </div>
+            )}
+
+            {/* Campaign Multi-Select */}
+            <div className="bg-white border border-gray-200 rounded-xl p-5">
+                <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-semibold">🎯 Campaign Selection</h3>
+                    <div className="flex gap-2">
+                        <button onClick={selectAll} className="text-xs px-3 py-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 font-medium">All</button>
+                        <button onClick={selectNone} className="text-xs px-3 py-1 bg-gray-100 text-gray-600 rounded hover:bg-gray-200 font-medium">None</button>
+                    </div>
+                </div>
+                <div className="mb-4 flex gap-3">
+                    <div className="flex-1">
+                        <label className="block text-xs text-gray-500 mb-1">Start Date</label>
+                        <input type="date" value={dateRange.start} onChange={e => setDateRange({...dateRange, start: e.target.value})}
+                            className="border border-gray-300 rounded px-3 py-2 text-sm w-full" />
+                    </div>
+                    <div className="flex-1">
+                        <label className="block text-xs text-gray-500 mb-1">End Date</label>
+                        <input type="date" value={dateRange.end} onChange={e => setDateRange({...dateRange, end: e.target.value})}
+                            className="border border-gray-300 rounded px-3 py-2 text-sm w-full" />
+                    </div>
+                    {(dateRange.start || dateRange.end) && (
+                        <div className="flex items-end">
+                            <button onClick={() => setDateRange({start: '', end: ''})}
+                                className="px-3 py-2 bg-gray-100 text-gray-600 rounded hover:bg-gray-200 text-xs font-medium">
+                                Clear
+                            </button>
+                        </div>
+                    )}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                    {campaigns.map(c => {
+                        const isSelected = selectedCampaigns.includes(c.name);
+                        return (
+                            <button
+                                key={c.name}
+                                onClick={() => toggleCampaign(c.name)}
+                                className={"px-3 py-2 rounded-lg text-xs font-medium border transition-all " + (isSelected ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400')}>
+                                {c.name}
+                                <span className={"ml-1.5 " + (isSelected ? 'text-blue-200' : 'text-gray-400')}>
+                                    ${c.spend > 0 ? fmtK(c.spend) : '—'}
+                                </span>
+                            </button>
+                        );
+                    })}
+                </div>
+                {selectedCampaigns.length === 0 && (
+                    <div className="mt-3 text-sm text-orange-600 bg-orange-50 rounded-lg p-3">⚠️ No campaigns selected. Select at least one to see projections.</div>
+                )}
+                {selectedCampaigns.length > 0 && (
+                    <div className="mt-3 grid grid-cols-3 gap-3 text-xs text-gray-600 bg-gray-50 rounded-lg p-3">
+                        <div><span className="text-gray-400">Selected spend:</span> <strong>{fmtK(totalActualSpend)}</strong> {(dateRange.start || dateRange.end) && <span className="text-blue-600">(filtered)</span>}</div>
+                        <div><span className="text-gray-400">Trials:</span> <strong>{totalTrials}</strong></div>
+                        <div><span className="text-gray-400">Modeled Paid (×40%):</span> <strong>{Math.round(totalActualConversions)}</strong></div>
+                        <div><span className="text-gray-400">Actual CPA:</span> <strong>{fmt2(actualCPA)}</strong></div>
+                    </div>
+                )}
+            </div>
+
+            {selectedCampaigns.length === 0 ? null : (
+            <React.Fragment>
+
+            {/* Core KPI Cards */}
+            <div>
+                <h3 className="font-semibold mb-3 text-sm text-gray-600">
+                    Key Metrics {(dateRange.start || dateRange.end) && <span className="text-blue-600">(date filtered)</span>}
+                </h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
+                    {[
+                        {label: 'Installs', value: fmtN(totalInstalls), sub: fmt2(cpi) + ' CPI', color: 'blue'},
+                        {label: 'Trials', value: fmtN(totalTrials), sub: ((liveOptInRate * 100).toFixed(1) + '% opt-in'), color: 'blue'},
+                        {label: 'Modeled Paid', value: fmtN(totalActualConversions), sub: '40% conv', color: 'blue'},
+                        {label: 'Total Spend', value: fmtK(totalActualSpend), sub: fmt2(totalActualSpend / Math.max(activeCampaigns.reduce((s,c)=>s+c.clicks,0), 1)) + ' avg CPC', color: 'blue'},
+                        {label: 'CPA', value: fmt2(actualCPA), sub: actualCPA <= targetCPA ? '✅ vs $' + targetCPA.toFixed(2) : '⚠️ vs $' + targetCPA.toFixed(2), color: actualCPA <= targetCPA ? 'green' : 'red'},
+                        {label: '12M ROAS', value: (cohortROAS(projectedMonthlySpend, 12).roas * 100).toFixed(0) + '%', sub: cohortROAS(projectedMonthlySpend, 12).roas >= 1 ? '✅ profitable' : '❌ unprofitable', color: cohortROAS(projectedMonthlySpend, 12).roas >= 1 ? 'green' : 'red'},
+                        {label: 'Payback', value: paybackMonth ? 'M' + paybackMonth.month : '>24m', sub: 'cohort ROI', color: paybackMonth && paybackMonth.month <= 12 ? 'green' : 'yellow'},
+                        {label: 'M12 MRR', value: fmtK(proj[11].mrr), sub: fmtN(proj[11].activeSubs) + ' subs', color: 'purple'}
+                    ].map(k => {
+                        const colorClasses = {
+                            blue: 'bg-blue-50 border-blue-200',
+                            green: 'bg-green-50 border-green-200',
+                            red: 'bg-red-50 border-red-200',
+                            yellow: 'bg-yellow-50 border-yellow-200',
+                            purple: 'bg-purple-50 border-purple-200'
+                        };
+                        const textClasses = {
+                            blue: 'text-blue-900',
+                            green: 'text-green-900',
+                            red: 'text-red-900',
+                            yellow: 'text-yellow-900',
+                            purple: 'text-purple-900'
+                        };
+                        return (
+                            <div key={k.label} className={"border rounded-lg p-3 " + colorClasses[k.color]}>
+                                <div className="text-xs text-gray-600">{k.label}</div>
+                                <div className={"text-xl font-bold " + textClasses[k.color]}>{k.value}</div>
+                                <div className="text-xs text-gray-500 mt-0.5">{k.sub}</div>
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+
+            {/* Goals Section */}
+            {showGoals && (
+                <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-xl p-6">
+                    <h3 className="font-semibold text-lg mb-4">🎯 Goals & Gap Analysis</h3>
+                    
+                    {/* Goal Inputs */}
+                    <div className="bg-white rounded-lg p-4 mb-6 border-2 border-purple-300">
+                        <div className="text-sm font-semibold text-purple-900 mb-3">📝 Set Your Goals:</div>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div>
+                            <label className="block text-xs text-gray-600 mb-1">ROAS Target (%)</label>
+                            <input type="number" value={goals.roasTarget} 
+                                onChange={e => setGoals({...goals, roasTarget: parseFloat(e.target.value) || 100})}
+                                className="border rounded px-3 py-2 w-full text-sm" />
+                        </div>
+                        <div>
+                            <label className="block text-xs text-gray-600 mb-1">At Month</label>
+                            <input type="number" min="1" max="24" value={goals.roasMonths}
+                                onChange={e => setGoals({...goals, roasMonths: parseInt(e.target.value) || 3})}
+                                className="border rounded px-3 py-2 w-full text-sm" />
+                        </div>
+                        <div>
+                            <label className="block text-xs text-gray-600 mb-1">Payback Target (months)</label>
+                            <input type="number" min="1" max="24" value={goals.paybackMonths}
+                                onChange={e => setGoals({...goals, paybackMonths: parseInt(e.target.value) || 6})}
+                                className="border rounded px-3 py-2 w-full text-sm" />
+                        </div>
+                        <div>
+                            <label className="block text-xs text-gray-600 mb-1">Margin Target (%)</label>
+                            <input type="number" value={goals.marginTarget}
+                                onChange={e => setGoals({...goals, marginTarget: parseFloat(e.target.value) || 30})}
+                                className="border rounded px-3 py-2 w-full text-sm" />
+                        </div>
+                        </div>
+                    </div>
+
+                    {/* Gap Analysis Cards */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {(() => {
+                            // ROAS Goal
+                            const currentROAS = cohortROAS(projectedMonthlySpend, goals.roasMonths).roas * 100;
+                            const roasGap = currentROAS - goals.roasTarget;
+                            const roasHit = roasGap >= 0;
+                            
+                            // Calculate what CPA needed to hit ROAS goal
+                            let neededCPA = actualCPA;
+                            for (let testCPA = 0.5; testCPA < 20; testCPA += 0.1) {
+                                const testSpend = acq.newSubs * testCPA;
+                                const testROAS = cohortROAS(testSpend, goals.roasMonths).roas * 100;
+                                if (testROAS >= goals.roasTarget) {
+                                    neededCPA = testCPA;
+                                    break;
+                                }
+                            }
+                            
+                            // Payback Goal
+                            const currentPayback = paybackMonth ? paybackMonth.month : 25;
+                            const paybackHit = currentPayback <= goals.paybackMonths;
+                            
+                            // Margin Goal (M12)
+                            const currentMargin = proj[11].margin;
+                            const marginGap = currentMargin - goals.marginTarget;
+                            const marginHit = marginGap >= 0;
+                            
+                            return [
+                                {
+                                    title: goals.roasMonths + '-Month ROAS Goal',
+                                    goal: goals.roasTarget + '%',
+                                    current: currentROAS.toFixed(0) + '%',
+                                    hit: roasHit,
+                                    gap: (roasHit ? '+' : '') + roasGap.toFixed(0) + ' pp',
+                                    advice: roasHit 
+                                        ? '✅ Goal achieved!' 
+                                        : 'Need CPA ≤ $' + neededCPA.toFixed(2) + ' (currently $' + actualCPA.toFixed(2) + ')'
+                                },
+                                {
+                                    title: 'Payback Goal',
+                                    goal: '≤ ' + goals.paybackMonths + ' months',
+                                    current: currentPayback > 24 ? '>24 months' : 'Month ' + currentPayback,
+                                    hit: paybackHit,
+                                    gap: paybackHit ? 'On track' : (currentPayback - goals.paybackMonths) + ' months late',
+                                    advice: paybackHit
+                                        ? '✅ Goal achieved!'
+                                        : 'Reduce CPA or increase ARPPU to accelerate payback'
+                                },
+                                {
+                                    title: 'Margin Goal (M12)',
+                                    goal: goals.marginTarget + '%',
+                                    current: currentMargin.toFixed(1) + '%',
+                                    hit: marginHit,
+                                    gap: (marginHit ? '+' : '') + marginGap.toFixed(1) + ' pp',
+                                    advice: marginHit
+                                        ? '✅ Goal achieved!'
+                                        : 'Reduce spend or improve retention to increase margin'
+                                }
+                            ].map((g, i) => (
+                                <div key={i} className={"rounded-lg p-4 border-2 " + (g.hit ? 'bg-green-50 border-green-300' : 'bg-red-50 border-red-300')}>
+                                    <div className="text-sm font-semibold text-gray-700 mb-2">{g.title}</div>
+                                    <div className="grid grid-cols-2 gap-2 mb-3">
+                                        <div>
+                                            <div className="text-xs text-gray-500">Goal</div>
+                                            <div className="font-bold text-gray-900">{g.goal}</div>
+                                        </div>
+                                        <div>
+                                            <div className="text-xs text-gray-500">Current</div>
+                                            <div className={"font-bold " + (g.hit ? 'text-green-700' : 'text-red-700')}>{g.current}</div>
+                                        </div>
+                                    </div>
+                                    <div className={"text-xs font-medium mb-2 " + (g.hit ? 'text-green-700' : 'text-red-700')}>
+                                        Gap: {g.gap}
+                                    </div>
+                                    <div className="text-xs text-gray-700 bg-white bg-opacity-50 rounded p-2">
+                                        {g.advice}
+                                    </div>
+                                </div>
+                            ));
+                        })()}
+                    </div>
+                </div>
+            )}
+
+            {/* Spend Controls */}
+            <div className="bg-white border border-gray-200 rounded-xl p-5">
+                <h3 className="font-semibold mb-4">📊 Spend Scenario</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
+                    <div>
+                        <div className="text-sm text-gray-500 mb-1">Base Monthly Spend</div>
+                        <div className="text-2xl font-bold">{fmtK(baseMonthlySpend)}</div>
+                        <div className="text-xs text-gray-400">CPI: {fmt2(cpi)} · CPA: {fmt2(acq.cpa)}</div>
+                    </div>
+                    <div>
+                        <label className="block text-sm text-gray-600 mb-2">Multiplier: <strong>{spendMultiplier}x</strong> = <strong>{fmtK(baseMonthlySpend * spendMultiplier)}/mo</strong></label>
+                        <input type="range" min="0.5" max="10" step="0.5" value={spendMultiplier}
+                            onChange={e => { setSpendMultiplier(parseFloat(e.target.value)); setMonthlySpendOverride(''); }}
+                            className="w-full accent-blue-600" />
+                        <div className="flex justify-between text-xs text-gray-400 mt-1"><span>0.5x</span><span>5x</span><span>10x</span></div>
+                    </div>
+                    <div>
+                        <label className="block text-sm text-gray-600 mb-1">Override Monthly Spend</label>
+                        <div className="flex items-center gap-2">
+                            <span className="text-gray-500 font-medium">$</span>
+                            <input type="number" value={monthlySpendOverride}
+                                onChange={e => { setMonthlySpendOverride(e.target.value); setSpendMultiplier(1); }}
+                                placeholder={baseMonthlySpend.toFixed(0)}
+                                className="border border-gray-300 rounded-lg px-3 py-2 w-full" />
+                        </div>
+                    </div>
+                </div>
+                <div className="mt-4 p-3 bg-blue-50 rounded-lg flex items-center justify-between">
+                    <div>
+                        <span className="text-blue-800 font-semibold text-lg">{fmtK(projectedMonthlySpend)}/month</span>
+                        {projectedMonthlySpend !== baseMonthlySpend && (
+                            <span className="ml-2 text-blue-500 text-sm">({((projectedMonthlySpend / baseMonthlySpend - 1) * 100).toFixed(0)}% vs actual)</span>
+                        )}
+                    </div>
+                    <div className="text-sm text-blue-700">
+                        <strong>{fmtN(acq.newSubs)}</strong> new subs/month · CPA <strong>{fmt2(acq.cpa)}</strong>
+                    </div>
+                </div>
+            </div>
+
+            {/* Key Stats */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {[
+                    { label: 'Payback Period', value: paybackMonth ? 'Month ' + paybackMonth.month : '>24 months', sub: 'Cohort ROAS hits 100%', green: paybackMonth && paybackMonth.month <= 12, red: !paybackMonth },
+                    { label: 'Cash Flow +ve', value: breakEvenMonth ? 'Month ' + breakEvenMonth.month : '>24 months', sub: 'Cumulative CF > $0', green: breakEvenMonth && breakEvenMonth.month <= 18, red: !breakEvenMonth },
+                    { label: '12-Month ROAS', value: (cohortROAS(projectedMonthlySpend, 12).roas * 100).toFixed(0) + '%', sub: 'vs 100% break-even', green: cohortROAS(projectedMonthlySpend, 12).roas >= 1, red: cohortROAS(projectedMonthlySpend, 12).roas < 1 },
+                    { label: 'Month 24 MRR', value: fmtK(proj[23] ? proj[23].mrr : 0), sub: fmtN(proj[23] ? proj[23].activeSubs : 0) + ' active subs', green: false, red: false, blue: true },
+                ].map(s => (
+                    <div key={s.label} className={"rounded-xl p-4 border " + (s.blue ? 'bg-blue-50 border-blue-200' : s.green ? 'bg-green-50 border-green-200' : s.red ? 'bg-red-50 border-red-200' : 'bg-yellow-50 border-yellow-200')}>
+                        <div className="text-xs text-gray-500 mb-1">{s.label}</div>
+                        <div className={"text-2xl font-bold " + (s.blue ? 'text-blue-700' : s.green ? 'text-green-700' : s.red ? 'text-red-700' : 'text-yellow-700')}>{s.value}</div>
+                        <div className="text-xs text-gray-400 mt-1">{s.sub}</div>
+                    </div>
+                ))}
+            </div>
+
+            {/* ROAS Section */}
+            <div className="bg-white border border-gray-200 rounded-xl p-5">
+                <div className="flex items-center justify-between mb-4">
+                    <h3 className="font-semibold">📈 ROAS Analysis</h3>
+                    <div className="flex gap-2">
+                        {['table', 'curve', 'scenarios'].map(t => (
+                            <button key={t} onClick={() => setActiveRoasTab(t)}
+                                className={"px-3 py-1 rounded text-xs font-medium capitalize " + (activeRoasTab === t ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200')}>
+                                {t.charAt(0).toUpperCase() + t.slice(1)}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                {activeRoasTab === 'table' && (
+                    <div>
+                        <p className="text-xs text-gray-500 mb-3">Cumulative revenue from one month's subscriber cohort vs spend to acquire them. Green = paid back.</p>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                                <thead className="bg-gray-50">
+                                    <tr>
+                                        {['Month', 'Cumul. Revenue', 'ROAS', 'Progress to Break-even', 'Status'].map(h => (
+                                            <th key={h} className="px-3 py-2 text-left text-xs font-semibold text-gray-600">{h}</th>
+                                        ))}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {roasTable.map((r, i) => {
+                                        const pct = r.roas * 100;
+                                        const paid = r.roas >= 1;
+                                        return (
+                                            <tr key={i} className={"border-t border-gray-100 " + (paid ? 'bg-green-50' : '')}>
+                                                <td className="px-3 py-2 font-medium">M{r.month}</td>
+                                                <td className="px-3 py-2">{fmtK(r.revenue)}</td>
+                                                <td className={"px-3 py-2 font-bold " + (paid ? 'text-green-700' : pct > 70 ? 'text-yellow-700' : 'text-red-600')}>{pct.toFixed(1)}%</td>
+                                                <td className="px-3 py-2">
+                                                    <div className="w-full bg-gray-200 rounded-full h-2">
+                                                        <div className={"h-2 rounded-full " + (paid ? 'bg-green-500' : 'bg-blue-400')} style={{ width: Math.min(pct, 100) + '%' }}></div>
+                                                    </div>
+                                                </td>
+                                                <td className="px-3 py-2 text-xs">
+                                                    {paid
+                                                        ? <span className="text-green-700 font-semibold">✅ Paid back</span>
+                                                        : <span className="text-gray-500">{(100 - pct).toFixed(1)}% to go</span>
+                                                    }
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                )}
+
+                {activeRoasTab === 'curve' && (
+                    <div>
+                        <p className="text-xs text-gray-500 mb-3">ROAS curve for current vs target CPA. Shows how much faster you pay back if you hit CPA target.</p>
+                        <div className="border border-gray-200 rounded-lg p-2" style={{ height: '350px', position: 'relative' }}>
+                            <canvas ref={roasCurveRef}></canvas>
+                        </div>
+                        <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
+                            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                                <div className="font-semibold text-red-800">Current CPA: {fmt2(acq.cpa)}</div>
+                                <div className="text-red-700 text-xs mt-1">Payback: {paybackMonth ? 'Month ' + paybackMonth.month : '>24 months'}</div>
+                                <div className="text-red-700 text-xs">12M ROAS: {(cohortROAS(projectedMonthlySpend, 12).roas * 100).toFixed(0)}%</div>
+                            </div>
+                            <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                                <div className="font-semibold text-green-800">Target CPA: ${targetCPA.toFixed(2)}</div>
+                                <div className="text-green-700 text-xs mt-1">
+                                    {(() => {
+                                        const tp = scenarioTarget.find(r => r.roas >= 100);
+                                        return tp ? 'Payback: Month ' + tp.month : 'Payback: >24 months';
+                                    })()}
+                                </div>
+                                <div className="text-green-700 text-xs">12M ROAS: {scenarioTarget[11].roas.toFixed(0)}%</div>
+                                {paybackMonth && (() => {
+                                    const tp = scenarioTarget.find(r => r.roas >= 100);
+                                    if (tp && tp.month < paybackMonth.month) {
+                                        return <div className="text-green-700 text-xs font-semibold mt-1">{paybackMonth.month - tp.month} months faster payback</div>;
+                                    }
+                                    return null;
+                                })()}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {activeRoasTab === 'scenarios' && (
+                    <div>
+                        <p className="text-xs text-gray-500 mb-3">ROAS at key milestones across different CPA scenarios. Orange = current, green = target.</p>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-xs">
+                                <thead className="bg-gray-50">
+                                    <tr>
+                                        <th className="px-3 py-2 text-left font-semibold text-gray-600">CPA</th>
+                                        {[1, 2, 3, 6, 9, 12, 18, 24].map(m => <th key={m} className="px-2 py-2 text-left font-semibold text-gray-600">M{m}</th>)}
+                                        <th className="px-3 py-2 text-left font-semibold text-gray-600">Payback</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {[acq.cpa * 1.5, acq.cpa, acq.cpa * 0.75, targetCPA * 1.5, targetCPA * 1.25, targetCPA, targetCPA * 0.75]
+                                        .filter((v, i, a) => a.findIndex(x => Math.abs(x - v) < 0.01) === i)
+                                        .sort((a, b) => b - a)
+                                        .map(cpaScenario => {
+                                            const scenSpend = acq.newSubs > 0 ? acq.newSubs * cpaScenario : projectedMonthlySpend;
+                                            const scenAcq = computeAcq(scenSpend);
+                                            const getR = (m) => {
+                                                const rev = Array.from({ length: m }, (_, i) => {
+                                                    const ret = MODEL.subRetention[i] !== undefined ? MODEL.subRetention[i] : MODEL.subRetention[MODEL.subRetention.length - 1];
+                                                    return scenAcq.newSubs * ret * MODEL.arppu;
+                                                }).reduce((a, b) => a + b, 0);
+                                                return rev / scenSpend * 100;
+                                            };
+                                            const pb = Array.from({ length: 24 }, (_, i) => ({ m: i + 1, r: getR(i + 1) })).find(x => x.r >= 100);
+                                            const isActual = Math.abs(cpaScenario - acq.cpa) < 0.05;
+                                            const isTarget = Math.abs(cpaScenario - targetCPA) < 0.05;
+                                            return (
+                                                <tr key={cpaScenario} className={"border-t border-gray-100 " + (isTarget ? 'bg-green-50' : isActual ? 'bg-orange-50' : '')}>
+                                                    <td className="px-3 py-2 font-medium">
+                                                        ${cpaScenario.toFixed(2)}
+                                                        {isActual && <span className="ml-1 text-orange-500">(actual)</span>}
+                                                        {isTarget && <span className="ml-1 text-green-600">(target)</span>}
+                                                    </td>
+                                                    {[1, 2, 3, 6, 9, 12, 18, 24].map(m => {
+                                                        const r = getR(m);
+                                                        return (
+                                                            <td key={m} className={"px-2 py-2 font-medium " + (r >= 100 ? 'text-green-700' : r >= 70 ? 'text-yellow-700' : 'text-red-600')}>
+                                                                {r.toFixed(0)}%
+                                                            </td>
+                                                        );
+                                                    })}
+                                                    <td className="px-3 py-2 font-semibold">
+                                                        {pb ? <span className="text-green-700">M{pb.m}</span> : <span className="text-red-600">&gt;24m</span>}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* LTV Chart */}
+            <div className="bg-white border border-gray-200 rounded-xl p-5">
+                <h3 className="font-semibold mb-2">💰 LTV vs CPA</h3>
+                <p className="text-xs text-gray-500 mb-4">Cumulative revenue per subscriber over time vs what you paid to acquire them. When LTV line crosses CPA = paid back.</p>
+                <div className="border border-gray-200 rounded-lg p-2" style={{ height: '300px', position: 'relative' }}>
+                    <canvas ref={ltvChartRef}></canvas>
+                </div>
+                <div className="mt-3 grid grid-cols-3 gap-3">
+                    {[3, 6, 12].map(m => (
+                        <div key={m} className="bg-gray-50 rounded-lg p-3 text-xs">
+                            <div className="text-gray-500">LTV at M{m}</div>
+                            <div className="font-bold text-lg">${ltvCurve[m - 1].toFixed(2)}</div>
+                            <div className={ltvCurve[m - 1] >= acq.cpa ? 'text-green-600' : 'text-red-600'}>
+                                {ltvCurve[m - 1] >= acq.cpa
+                                    ? '✅ ' + ((ltvCurve[m - 1] / acq.cpa - 1) * 100).toFixed(0) + '% above CPA'
+                                    : '⚠️ ' + ((1 - ltvCurve[m - 1] / acq.cpa) * 100).toFixed(0) + '% below CPA'
+                                }
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            {/* Reddit API Cost Breakdown */}
+            <div className="bg-white border border-gray-200 rounded-xl p-5">
+                <h3 className="font-semibold mb-3">🔧 Reddit API Cost Calculation</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {[3, 6, 12, 24].map(m => {
+                        const p = proj[m-1];
+                        return (
+                            <div key={m} className="bg-gray-50 rounded-lg p-4">
+                                <div className="text-xs text-gray-500 mb-1">Month {m}</div>
+                                <div className="text-lg font-bold text-orange-600">{fmtK(p.apiCost)}</div>
+                                <div className="text-xs text-gray-600 mt-2">
+                                    {fmtN(p.activeSubs)} active subs<br/>
+                                    × $1.00/sub/month
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+                <div className="mt-4 p-3 bg-blue-50 rounded-lg text-sm">
+                    <strong>Formula:</strong> Reddit API Cost = Active Paying Subscribers × $1.00/month
+                    <div className="text-xs text-gray-600 mt-1">Active subs includes all retained cohorts (decays via retention curve)</div>
+                </div>
+            </div>
+
+            {/* Cash Flow Chart */}
+            <div className="bg-white border border-gray-200 rounded-xl p-5">
+                <h3 className="font-semibold mb-2">💸 Cash Flow (24 Months)</h3>
+                <p className="text-xs text-gray-500 mb-4">
+                    <strong>Green</strong> = MRR coming in · <strong>Red</strong> = Ad Spend going out · <strong>Orange</strong> = API costs · 
+                    <strong>Gray</strong> = Net CF each month · <strong>Blue line</strong> = Cumulative (running total)
+                </p>
+                <div className="border border-gray-200 rounded-lg p-2" style={{ height: '380px', position: 'relative' }}>
+                    <canvas ref={cashChartRef}></canvas>
+                </div>
+                {/* Cash Flow Explainer */}
+                <div className="bg-gray-50 rounded-lg p-4 mb-3">
+                    <div className="text-sm font-semibold mb-3">💡 Month 12 Cash Flow Breakdown</div>
+                    <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm">
+                        <div className="flex justify-between">
+                            <span className="text-gray-600">Revenue (MRR):</span>
+                            <span className="font-semibold text-green-700">{fmtK(proj[11].mrr)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                            <span className="text-gray-600">Active Subscribers:</span>
+                            <span className="font-medium">{fmtN(proj[11].activeSubs)}</span>
+                        </div>
+                        <div className="flex justify-between border-t border-gray-200 pt-2">
+                            <span className="text-gray-600">Ad Spend:</span>
+                            <span className="font-semibold text-red-600">-{fmtK(proj[11].adSpend)}</span>
+                        </div>
+                        <div></div>
+                        <div className="flex justify-between">
+                            <span className="text-gray-600">Reddit API Cost:</span>
+                            <span className="font-semibold text-orange-600">-{fmtK(proj[11].apiCost)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                            <span className="text-gray-400 text-xs">({fmtN(proj[11].activeSubs)} subs × $1.00)</span>
+                            <span></span>
+                        </div>
+                        <div className="flex justify-between border-t border-gray-200 pt-2 font-bold">
+                            <span className="text-gray-900">Net Cash Flow:</span>
+                            <span className={"" + (proj[11].netCF >= 0 ? 'text-green-700' : 'text-red-600')}>
+                                {proj[11].netCF >= 0 ? '+' : ''}{fmtK(proj[11].netCF)}
+                            </span>
+                        </div>
+                        <div className="flex justify-between border-t border-gray-200 pt-2 font-bold">
+                            <span className="text-gray-900">Margin:</span>
+                            <span className={"" + (proj[11].margin >= 0 ? 'text-green-700' : 'text-red-600')}>
+                                {proj[11].margin.toFixed(1)}%
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="mt-3">
+                    {breakEvenMonth
+                        ? <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-green-800 text-sm font-semibold">✅ Cumulative cash flow positive at Month {breakEvenMonth.month} · MRR at that point: {fmtK(breakEvenMonth.mrr)}</div>
+                        : <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg text-orange-800 text-sm">⚠️ Not cash flow positive within 24 months at this spend level.</div>
+                    }
+                </div>
+            </div>
+
+            {/* Full Table */}
+            <div className="bg-white border border-gray-200 rounded-xl p-5">
+                <h3 className="font-semibold mb-3">📋 Full Month-by-Month Projection</h3>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                        <thead className="bg-gray-50">
+                            <tr>
+                                {['Mo', 'Installs', 'New Subs', 'Active Subs', 'MRR', 'Ad Spend', 'API Cost', 'Net CF', 'Margin', 'Cumul CF'].map(h => (
+                                    <th key={h} className="px-2 py-2 text-left font-semibold text-gray-600">{h}</th>
+                                ))}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {proj.map((p, i) => (
+                                <tr key={i} className={"border-t border-gray-100 " + (p.cumCF >= 0 ? 'bg-green-50' : i % 2 === 0 ? 'bg-gray-50' : '')}>
+                                    <td className="px-2 py-1.5 font-medium">M{p.month}</td>
+                                    <td className="px-2 py-1.5">{fmtN(p.installs)}</td>
+                                    <td className="px-2 py-1.5">{fmtN(p.newSubs)}</td>
+                                    <td className="px-2 py-1.5">{fmtN(p.activeSubs)}</td>
+                                    <td className="px-2 py-1.5 text-green-700 font-medium">{fmtK(p.mrr)}</td>
+                                    <td className="px-2 py-1.5 text-red-600">-{fmtK(p.adSpend)}</td>
+                                    <td className="px-2 py-1.5 text-orange-500">-{fmtK(p.apiCost)}</td>
+                                    <td className={"px-2 py-1.5 font-medium " + (p.netCF >= 0 ? 'text-green-700' : 'text-red-600')}>{p.netCF >= 0 ? '+' : ''}{fmtK(p.netCF)}</td>
+                                    <td className={"px-2 py-1.5 font-bold " + (p.cumCF >= 0 ? 'text-green-700' : 'text-red-600')}>{p.cumCF >= 0 ? '+' : ''}{fmtK(p.cumCF)}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            </React.Fragment>
+            )}
+
+            {/* Model Workings - always at bottom, outside the selectedCampaigns check */}
+            {showWorkings && (
+                <div className="bg-gray-900 text-gray-100 rounded-xl p-6 space-y-5" style={{ fontFamily: 'monospace', fontSize: '12px' }}>
+                    <h3 style={{ color: '#facc15', fontWeight: 'bold', fontSize: '14px' }}>MODEL WORKINGS - Verify every number traces back to source</h3>
+
+                    <div>
+                        <div style={{ color: '#4ade80', fontWeight: 'bold', marginBottom: '8px' }}>INPUTS FROM YOUR FINANCIAL MODEL</div>
+                        <div>Opt-In Rate (trials / installs): <span style={{ color: '#fde047' }}>{(liveOptInRate * 100).toFixed(2)}%</span> — LIVE from campaign data ({totalTrials} trials / {totalInstalls} installs)</div>
+                        <div>Trial to Paid Conversion: <span style={{ color: '#fde047' }}>{(MODEL.trialConvRate * 100).toFixed(0)}%</span> — Source: "Conversion Rate" row in financial model (not available from AppsFlyer)</div>
+                        <div>Monthly ARPPU (net of store cut): <span style={{ color: '#fde047' }}>${MODEL.arppu.toFixed(2)}</span> — Source: "Monthly ARPPU (avg)" row</div>
+                        <div>Reddit API Cost: <span style={{ color: '#fde047' }}>$1.00/sub/month</span> — Source: "Reddit API Cost" row</div>
+                    </div>
+
+                    <div>
+                        <div style={{ color: '#4ade80', fontWeight: 'bold', marginBottom: '8px' }}>DERIVED FROM CAMPAIGN DATA (selected campaigns)</div>
+                        <div>Total Spend: <span style={{ color: '#fde047' }}>{fmtK(totalActualSpend)}</span></div>
+                        <div>Total Paid Subs: <span style={{ color: '#fde047' }}>{totalActualConversions}</span></div>
+                        <div>Actual CPA: <span style={{ color: '#fde047' }}>{fmt2(actualCPA)}</span> = {fmtK(totalActualSpend)} / {totalActualConversions} subs</div>
+                        <div>Total Installs: <span style={{ color: '#fde047' }}>{fmtN(totalInstalls)}</span> — from (MMP) Total App Installs column</div>
+                        <div>Total Trials: <span style={{ color: '#fde047' }}>{fmtN(totalTrials)}</span> — from (MMP) App Purchases column</div>
+                        <div>Live Opt-In Rate: <span style={{ color: '#fde047' }}>{(liveOptInRate * 100).toFixed(2)}%</span> = {totalTrials} trials / {totalInstalls} installs</div>
+                        <div>CPI: <span style={{ color: '#fde047' }}>{fmt2(cpi)}</span> = {fmtK(totalActualSpend)} / {fmtN(totalInstalls)} installs</div>
+                        <div>Base Monthly Spend: <span style={{ color: '#fde047' }}>{fmtK(baseMonthlySpend)}</span> = {fmtK(totalActualSpend)} / {monthsOfData.toFixed(1)} months</div>
+                    </div>
+
+                    <div>
+                        <div style={{ color: '#4ade80', fontWeight: 'bold', marginBottom: '8px' }}>MONTHLY ACQUISITION at {fmtK(projectedMonthlySpend)}/month</div>
+                        <div>Installs = {fmtK(projectedMonthlySpend)} / {fmt2(cpi)} CPI = <span style={{ color: '#fde047' }}>{fmtN(acq.installs)}</span></div>
+                        <div>Trials = {fmtN(acq.installs)} x {(liveOptInRate * 100).toFixed(1)}% opt-in (live) = <span style={{ color: '#fde047' }}>{fmtN(acq.trials)}</span></div>
+                        <div>New Subs = {fmtN(acq.trials)} x {(MODEL.trialConvRate * 100).toFixed(0)}% = <span style={{ color: '#fde047' }}>{fmtN(acq.newSubs)}</span></div>
+                        <div>CPA check = {fmtK(projectedMonthlySpend)} / {fmtN(acq.newSubs)} = <span style={{ color: '#fde047' }}>{fmt2(acq.cpa)}</span></div>
+                    </div>
+
+                    <div>
+                        <div style={{ color: '#4ade80', fontWeight: 'bold', marginBottom: '8px' }}>COHORT MRR LOGIC</div>
+                        <div>Each month acquires {fmtN(acq.newSubs)} new subscribers</div>
+                        <div>Each cohort decays per subscriber retention curve (below)</div>
+                        <div>Active Subs (month M) = sum of all cohorts x subRetention[M - cohort_start_month]</div>
+                        <div>MRR = Active Subs x ${MODEL.arppu.toFixed(2)} ARPPU</div>
+                        <div>API Cost = Active Subs x $1.00 per month</div>
+                    </div>
+
+                    <div>
+                        <div style={{ color: '#4ade80', fontWeight: 'bold', marginBottom: '8px' }}>ROAS FORMULA</div>
+                        <div>Cohort ROAS (N months) = sum(m=0 to N: newSubs x subRetention[m] x $2.70) / monthlySpend</div>
+                        <div>Break-even = ROAS hits 100%</div>
+                        <div>Current payback: <span style={{ color: '#fde047' }}>{paybackMonth ? 'Month ' + paybackMonth.month : '>24 months'}</span></div>
+                    </div>
+
+                    <div>
+                        <div style={{ color: '#4ade80', fontWeight: 'bold', marginBottom: '8px' }}>SUBSCRIBER RETENTION CURVE (source: model "Retention Rate" row)</div>
+                        <div style={{ color: '#9ca3af', lineHeight: '1.8' }}>
+                            {MODEL.subRetention.map((r, i) => 'M' + i + ':' + (r * 100).toFixed(1) + '%').join('  |  ')}
+                        </div>
+                    </div>
+
+                    <div>
+                        <div style={{ color: '#4ade80', fontWeight: 'bold', marginBottom: '8px' }}>MAU / APP RETENTION CURVE (source: model "Retention Curve" row)</div>
+                        <div style={{ color: '#9ca3af', lineHeight: '1.8' }}>
+                            {MODEL.mauRetention.map((r, i) => 'M' + i + ':' + (r * 100).toFixed(1) + '%').join('  |  ')}
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+ReactDOM.render(<App />, document.getElementById('root'));
+</script>
+</body>
+</html>
