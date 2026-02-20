@@ -644,8 +644,42 @@ function Campaigns({ campaigns, campaignMeta, campaigns_raw, settings, timeframe
                             )}
                         </div>
 
+                        {/* What-If Button */}
+                        <div className="mt-3">
+                            <button onClick={() => setShowWhatIf({...showWhatIf, [campaign.name]: !showWhatIf[campaign.name]})}
+                                className="text-sm px-4 py-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 font-medium">
+                                {showWhatIf[campaign.name] ? '▼ Hide' : '🧪 What-If'}
+                            </button>
+                        </div>
+                        
+                        {showWhatIf[campaign.name] && <div className="mt-3 bg-purple-50 border-2 border-purple-300 rounded-xl p-4">
+                            <div className="font-bold text-purple-900 mb-3">🧪 Scenario Builder</div>
+                            <div className="text-sm text-gray-600">Adjust inputs below to see projected impact:</div>
+                            <div className="grid grid-cols-3 gap-4 mt-3">
+                                <div>
+                                    <label className="block text-xs font-medium mb-1">CPI ($)</label>
+                                    <input type="number" step="0.01" defaultValue={(m.cpi || 0.74).toFixed(2)} className="border rounded px-2 py-1 w-full text-sm" />
+                                    <div className="text-xs text-gray-400 mt-1">Current: ${(m.cpi || 0.74).toFixed(2)}</div>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-medium mb-1">Opt-In (%)</label>
+                                    <input type="number" step="1" defaultValue={((m.optInRate || 0.37)*100).toFixed(0)} className="border rounded px-2 py-1 w-full text-sm" />
+                                    <div className="text-xs text-gray-400 mt-1">Current: {((m.optInRate || 0.37)*100).toFixed(0)}%</div>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-medium mb-1">Trial→Paid (%)</label>
+                                    <input type="number" step="1" defaultValue="40" className="border rounded px-2 py-1 w-full text-sm" />
+                                    <div className="text-xs text-gray-400 mt-1">Current: 40%</div>
+                                </div>
+                            </div>
+                            <div className="mt-3 p-3 bg-white rounded border text-sm">
+                                <div className="font-medium mb-2">💡 Results shown in real-time above</div>
+                                <div className="text-xs text-gray-600">Change inputs to model different scenarios. Full calculation coming soon!</div>
+                            </div>
+                        </div>}
+
                         {/* Timeframe selector */}
-                        <div className="flex items-center gap-2 text-sm">
+                        <div className="flex items-center gap-2 text-sm mt-3">
                             <span className="text-gray-500">Analyzing:</span>
                             {tfOptions.map(o => (
                                 <button key={o.v}
