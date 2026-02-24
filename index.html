@@ -417,7 +417,7 @@ function App() {
                     date: new Date().toISOString().split('T')[0],
                     time: new Date().toLocaleTimeString(),
                     type: 'adrev-upload',
-                    description: `Ad revenue data: ${newCount} new date/country rows · avg ARPDAU $${avgArpdau.toFixed(4)} · avg eCPM $${avgEcpm.toFixed(4)} · settings auto-updated`
+                    description: `Ad revenue data: ${newCount} new date/country rows · avg ARPDAU ${avgArpdau.toFixed(4)} · avg eCPM ${avgEcpm.toFixed(4)} · settings auto-updated`
                 }, ...changelog];
 
                 setAdRevenueData(updated);
@@ -507,19 +507,19 @@ function App() {
         if (!m || m.conversions === 0) return { action: 'monitor', msg: 'No conversions yet. Keep monitoring.', priority: 'low' };
         
         if (broad?.stable && m.cpc < broad.avgCPC * 0.8) {
-            return { action: 'increase', msg: `Broad stable at $${broad.avgCPC.toFixed(2)} with $${broad.metrics.cpa.toFixed(2)} CPA. Increase CPC to match.`, rec: broad.avgCPC.toFixed(2), priority: 'high' };
+            return { action: 'increase', msg: `Broad stable at ${broad.avgCPC.toFixed(2)} with ${broad.metrics.cpa.toFixed(2)} CPA. Increase CPC to match.`, rec: broad.avgCPC.toFixed(2), priority: 'high' };
         }
         if (m.inLearning) {
             if (m.lowVolume) return { action: 'increase', msg: `Learning phase: Need more volume. Increase CPC to get above ${settings.minDailyClicks} clicks/day.`, priority: 'high' };
             return { action: 'maintain', msg: `Learning phase: Volume good (${m.avgClicks.toFixed(0)} clicks/day). Maintain CPC until ${settings.learningThreshold} conversions.`, priority: 'medium' };
         }
-        if (m.cpa > settings.maxCPA) return { action: 'pause', msg: `CPA $${m.cpa.toFixed(2)} exceeds max $${settings.maxCPA}. Consider pausing or major changes.`, priority: 'critical' };
+        if (m.cpa > settings.maxCPA) return { action: 'pause', msg: `CPA ${m.cpa.toFixed(2)} exceeds max ${settings.maxCPA}. Consider pausing or major changes.`, priority: 'critical' };
         if (m.cpa > settings.targetCPA * 1.3 && !m.lowVolume) {
             const recCPC = (settings.targetCPA * m.cvr / 100).toFixed(2);
             return { action: 'decrease', msg: `CPA ${((m.cpa / settings.targetCPA - 1) * 100).toFixed(0)}% above target. Decrease CPC.`, rec: recCPC, cur: m.cpc.toFixed(2), priority: 'medium' };
         }
         if (m.cpa < settings.targetCPA * 0.8) return { action: 'scale', msg: `CPA below target! Room to scale. Consider increasing budget or CPC.`, priority: 'low' };
-        return { action: 'maintain', msg: `On track. CPA $${m.cpa.toFixed(2)}, ${m.avgClicks.toFixed(0)} clicks/day.`, priority: 'low' };
+        return { action: 'maintain', msg: `On track. CPA ${m.cpa.toFixed(2)}, ${m.avgClicks.toFixed(0)} clicks/day.`, priority: 'low' };
     };
 
     const updateMeta = (name, updates) => {
@@ -667,7 +667,7 @@ function Dashboard({ campaigns, campaigns_raw, getMetrics, settings, snapshots, 
             priority: 'good',
             icon: '🏆',
             title: 'Best performer (7d)',
-            body: `${best.name.length > 40 ? best.name.slice(0,38)+'…' : best.name} — ${best.trials} trials at $${best.cpa.toFixed(2)} CPA · ${(best.trials/best.spend*1000).toFixed(1)} trials/$1k`,
+            body: `${best.name.length > 40 ? best.name.slice(0,38)+'…' : best.name} — ${best.trials} trials at ${best.cpa.toFixed(2)} CPA · ${(best.trials/best.spend*1000).toFixed(1)} trials/$1k`,
             action: 'campaigns'
         });
     }
@@ -702,7 +702,7 @@ function Dashboard({ campaigns, campaigns_raw, getMetrics, settings, snapshots, 
             priority: 'warn',
             icon: '📈',
             title: `CPA rising — 7d avg ${cpaTrend > 0 ? '+' : ''}${cpaTrend.toFixed(0)}% vs 30d avg`,
-            body: `7-day CPA $${cpa7.toFixed(2)} vs 30-day avg $${cpa30.toFixed(2)} — check campaign mix or bid changes`,
+            body: `7-day CPA ${cpa7.toFixed(2)} vs 30-day avg ${cpa30.toFixed(2)} — check campaign mix or bid changes`,
             action: 'financial'
         });
     } else if (cpaTrend !== null && cpaTrend < -10) {
@@ -710,7 +710,7 @@ function Dashboard({ campaigns, campaigns_raw, getMetrics, settings, snapshots, 
             priority: 'good',
             icon: '📉',
             title: `CPA improving — ${Math.abs(cpaTrend).toFixed(0)}% below 30d avg`,
-            body: `7-day CPA $${cpa7.toFixed(2)} — momentum is positive, consider scaling`,
+            body: `7-day CPA ${cpa7.toFixed(2)} — momentum is positive, consider scaling`,
             action: 'financial'
         });
     }
@@ -722,7 +722,7 @@ function Dashboard({ campaigns, campaigns_raw, getMetrics, settings, snapshots, 
                 priority: 'critical',
                 icon: '🚨',
                 title: `CPA ${unitEconGap.toFixed(0)}% above break-even`,
-                body: `CPA $${cpa7.toFixed(2)} vs blended 12M LTV/install $${blendedLTV12.toFixed(3)} (ad $${adLTV12.toFixed(3)} + sub). Break-even ≈ $${breakEvenCPA.toFixed(2)}`,
+                body: `CPA ${cpa7.toFixed(2)} vs blended 12M LTV/install ${blendedLTV12.toFixed(3)} (ad ${adLTV12.toFixed(3)} + sub). Break-even ≈ ${breakEvenCPA.toFixed(2)}`,
                 action: 'financial'
             });
         } else if (unitEconGap > 0) {
@@ -730,7 +730,7 @@ function Dashboard({ campaigns, campaigns_raw, getMetrics, settings, snapshots, 
                 priority: 'warn',
                 icon: '⚠️',
                 title: `${unitEconGap.toFixed(0)}% above break-even CPA`,
-                body: `Close — blended 12M LTV $${blendedLTV12.toFixed(3)}/install, current CPA $${cpa7.toFixed(2)} vs break-even $${breakEvenCPA.toFixed(2)}`,
+                body: `Close — blended 12M LTV ${blendedLTV12.toFixed(3)}/install, current CPA ${cpa7.toFixed(2)} vs break-even ${breakEvenCPA.toFixed(2)}`,
                 action: 'financial'
             });
         } else {
@@ -738,7 +738,7 @@ function Dashboard({ campaigns, campaigns_raw, getMetrics, settings, snapshots, 
                 priority: 'good',
                 icon: '✅',
                 title: `Unit economics working — CPI below blended LTV`,
-                body: `CPA $${cpa7.toFixed(2)} < blended 12M LTV/install $${blendedLTV12.toFixed(3)} (ad ${(adLTV12/blendedLTV12*100).toFixed(0)}% + sub ${(subContrib12/blendedLTV12*100).toFixed(0)}%)`,
+                body: `CPA ${cpa7.toFixed(2)} < blended 12M LTV/install ${blendedLTV12.toFixed(3)} (ad ${(adLTV12/blendedLTV12*100).toFixed(0)}% + sub ${(subContrib12/blendedLTV12*100).toFixed(0)}%)`,
                 action: 'financial'
             });
         }
@@ -796,7 +796,7 @@ function Dashboard({ campaigns, campaigns_raw, getMetrics, settings, snapshots, 
                     tooltip: {
                         callbacks: {
                             label: ctx => {
-                                if (ctx.dataset.yAxisID === 'y') return ` ${ctx.dataset.label}: $${(ctx.parsed.y||0).toFixed(2)}`;
+                                if (ctx.dataset.yAxisID === 'y') return ` ${ctx.dataset.label}: ${(ctx.parsed.y||0).toFixed(2)}`;
                                 return ` Trials: ${ctx.parsed.y}`;
                             }
                         }
@@ -804,7 +804,10 @@ function Dashboard({ campaigns, campaigns_raw, getMetrics, settings, snapshots, 
                 },
                 scales: {
                     x: { grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { maxTicksLimit: 10, font: { size: 10 } } },
-                    y: { position: 'left', title: { display: true, text: 'CPA ($)', font: { size: 10 } }, beginAtZero: true, ticks: { callback: v => '$'+v.toFixed(0) } },
+                    y: { position: 'left', title: { display: true, text: 'CPA ($)', font: { size: 10 } }, beginAtZero: true, ticks: { callback: v => '
+</body>
+<\/html>
++v.toFixed(0) } },
                     y2: { position: 'right', title: { display: true, text: 'Trials', font: { size: 10 } }, beginAtZero: true, grid: { drawOnChartArea: false } }
                 }
             }
@@ -846,8 +849,14 @@ function Dashboard({ campaigns, campaigns_raw, getMetrics, settings, snapshots, 
                 {[
                     {
                         label: '30d Spend',
-                        value: '$' + t30.spend.toFixed(0),
-                        sub: t30.clicks.toLocaleString() + ' clicks · CPI ' + (cpi30>0?'$'+cpi30.toFixed(2):'—'),
+                        value: '
+</body>
+<\/html>
+ + t30.spend.toFixed(0),
+                        sub: t30.clicks.toLocaleString() + ' clicks · CPI ' + (cpi30>0?'
+</body>
+<\/html>
++cpi30.toFixed(2):'—'),
                         note: null,
                         color: 'text-gray-900'
                     },
@@ -860,15 +869,30 @@ function Dashboard({ campaigns, campaigns_raw, getMetrics, settings, snapshots, 
                     },
                     {
                         label: '7d Avg CPA',
-                        value: cpa7 > 0 ? '$' + cpa7.toFixed(2) : '—',
-                        sub: cpa30 > 0 ? 'vs $' + cpa30.toFixed(2) + ' (30d)' : '—',
+                        value: cpa7 > 0 ? '
+</body>
+<\/html>
+ + cpa7.toFixed(2) : '—',
+                        sub: cpa30 > 0 ? 'vs 
+</body>
+<\/html>
+ + cpa30.toFixed(2) + ' (30d)' : '—',
                         note: cpaTrend !== null ? { val: (cpaTrend>0?'+':'')+cpaTrend.toFixed(0)+'%', good: cpaTrend < 0 } : null,
                         color: 'text-gray-900'
                     },
                     {
                         label: 'Blended LTV/Install (12M)',
-                        value: blendedLTV12 > 0 ? '$' + blendedLTV12.toFixed(3) : '—',
-                        sub: 'Ad $' + adLTV12.toFixed(3) + ' + Sub $' + subContrib12.toFixed(3),
+                        value: blendedLTV12 > 0 ? '
+</body>
+<\/html>
+ + blendedLTV12.toFixed(3) : '—',
+                        sub: 'Ad 
+</body>
+<\/html>
+ + adLTV12.toFixed(3) + ' + Sub 
+</body>
+<\/html>
+ + subContrib12.toFixed(3),
                         note: unitEconGap !== null ? { val: unitEconGap <= 0 ? '✓ LTV > CPI' : Math.round(unitEconGap)+'% CPA above b/e', good: unitEconGap <= 0 } : null,
                         color: 'text-amber-700'
                     },
@@ -979,7 +1003,10 @@ function Dashboard({ campaigns, campaigns_raw, getMetrics, settings, snapshots, 
                                         <div className="text-gray-400">${m.spend.toFixed(0)} spend</div>
                                     </div>
                                     <div className={'font-bold text-sm w-16 text-right ' + (m.cpa > 0 && m.cpa < cpa7 ? 'text-emerald-600' : 'text-red-500')}>
-                                        {m.cpa > 0 ? '$'+m.cpa.toFixed(2) : 'N/A'}
+                                        {m.cpa > 0 ? '
+</body>
+<\/html>
++m.cpa.toFixed(2) : 'N/A'}
                                     </div>
                                 </div>
                             </div>
@@ -1080,7 +1107,7 @@ function Campaigns({ campaigns, campaignMeta, campaigns_raw, settings, timeframe
         const benchmarkCPI = Math.min(...allMetrics.filter(x => x.cpi > 0).map(x => x.cpi));
         if (m.cpi > benchmarkCPI * 1.5 && m.cpi > 0) {
             const cpiSavingPct = ((m.cpi - benchmarkCPI) / m.cpi * 100).toFixed(0);
-            levers.push({ label: 'High CPI', detail: `$${m.cpi.toFixed(2)} vs best $${benchmarkCPI.toFixed(2)} in portfolio — ${cpiSavingPct}% above peer best`, severity: 'high', icon: '💸' });
+            levers.push({ label: 'High CPI', detail: `${m.cpi.toFixed(2)} vs best ${benchmarkCPI.toFixed(2)} in portfolio — ${cpiSavingPct}% above peer best`, severity: 'high', icon: '💸' });
         }
 
         // Opt-in drag
@@ -1323,11 +1350,17 @@ function Campaigns({ campaigns, campaignMeta, campaigns_raw, settings, timeframe
                         {/* Key metrics strip */}
                         <div className="grid grid-cols-6 gap-2">
                             {[
-                                { label: 'Spend', value: '$' + m.spend.toFixed(0), sub: null },
+                                { label: 'Spend', value: '
+</body>
+<\/html>
+ + m.spend.toFixed(0), sub: null },
                                 { label: 'Installs', value: (m.installs||0).toLocaleString(), sub: null },
                                 { label: 'Trials', value: (m.trials||0), sub: null },
                                 { label: 'Modeled Paid', value: Math.round(m.modeledPaidSubs||0), sub: 'trials×' + ((settings.trialConvRate||0.4)*100).toFixed(0)+'%' },
-                                { label: 'CPA', value: m.cpa > 0 ? '$'+m.cpa.toFixed(2) : 'N/A', sub: null, highlight: m.cpa > 0 ? (m.cpa < (allMetrics.reduce((s,x)=>s+x.cpa,0)/allMetrics.filter(x=>x.cpa>0).length) ? 'text-emerald-600' : 'text-red-600') : '' },
+                                { label: 'CPA', value: m.cpa > 0 ? '
+</body>
+<\/html>
++m.cpa.toFixed(2) : 'N/A', sub: null, highlight: m.cpa > 0 ? (m.cpa < (allMetrics.reduce((s,x)=>s+x.cpa,0)/allMetrics.filter(x=>x.cpa>0).length) ? 'text-emerald-600' : 'text-red-600') : '' },
                                 { label: 'Opt-In', value: m.optInRate > 0 ? (m.optInRate*100).toFixed(1)+'%' : 'N/A', sub: null },
                             ].map(s => (
                                 <div key={s.label} className="bg-gray-50 rounded-lg p-3">
@@ -1379,10 +1412,22 @@ function Campaigns({ campaigns, campaignMeta, campaigns_raw, settings, timeframe
                                 </div>
                                 <div className="grid grid-cols-4 gap-3 text-xs">
                                     {[
-                                        { label: 'Broad CPC', val: '$'+broad.avgCPC.toFixed(2), color: '' },
-                                        { label: 'Broad CPA', val: '$'+broad.metrics.cpa.toFixed(2), color: '' },
-                                        { label: 'Your CPC', val: '$'+m.cpc.toFixed(2)+' ('+ ((m.cpc/broad.avgCPC-1)*100).toFixed(0)+'%)', color: m.cpc < broad.avgCPC ? 'text-orange-600' : 'text-emerald-600' },
-                                        { label: 'Your CPA', val: '$'+m.cpa.toFixed(2)+' ('+((m.cpa/broad.metrics.cpa-1)*100).toFixed(0)+'%)', color: m.cpa > broad.metrics.cpa ? 'text-orange-600' : 'text-emerald-600' },
+                                        { label: 'Broad CPC', val: '
+</body>
+<\/html>
++broad.avgCPC.toFixed(2), color: '' },
+                                        { label: 'Broad CPA', val: '
+</body>
+<\/html>
++broad.metrics.cpa.toFixed(2), color: '' },
+                                        { label: 'Your CPC', val: '
+</body>
+<\/html>
++m.cpc.toFixed(2)+' ('+ ((m.cpc/broad.avgCPC-1)*100).toFixed(0)+'%)', color: m.cpc < broad.avgCPC ? 'text-orange-600' : 'text-emerald-600' },
+                                        { label: 'Your CPA', val: '
+</body>
+<\/html>
++m.cpa.toFixed(2)+' ('+((m.cpa/broad.metrics.cpa-1)*100).toFixed(0)+'%)', color: m.cpa > broad.metrics.cpa ? 'text-orange-600' : 'text-emerald-600' },
                                     ].map(s => <div key={s.label}><div className="text-gray-500 mb-0.5">{s.label}</div><div className={'font-semibold '+s.color}>{s.val}</div></div>)}
                                 </div>
                             </div>
@@ -1413,7 +1458,10 @@ function Campaigns({ campaigns, campaignMeta, campaigns_raw, settings, timeframe
                             <div className="p-4 space-y-4">
                                 {/* Sliders */}
                                 {[
-                                    { label: 'CPI', key: 'cpi', val: wifCPI, set: setWhatIfCPI, cur: m.cpi||1.0, min: 0.10, max: 5, step: 0.05, fmt: v => '$'+v.toFixed(2) },
+                                    { label: 'CPI', key: 'cpi', val: wifCPI, set: setWhatIfCPI, cur: m.cpi||1.0, min: 0.10, max: 5, step: 0.05, fmt: v => '
+</body>
+<\/html>
++v.toFixed(2) },
                                     { label: 'Opt-In Rate', key: 'opt', val: wifOptIn, set: setWhatIfOptIn, cur: (m.optInRate||0.37)*100, min: 1, max: 80, step: 1, fmt: v => v.toFixed(0)+'%' },
                                     { label: 'Trial→Paid', key: 'tri', val: wifTrialConv, set: setWhatIfTrialConv, cur: (settings.trialConvRate||0.4)*100, min: 1, max: 80, step: 1, fmt: v => v.toFixed(0)+'%' },
                                 ].map(s => (
@@ -1466,13 +1514,22 @@ function Campaigns({ campaigns, campaignMeta, campaigns_raw, settings, timeframe
                                                     <div className="space-y-1.5">
                                                         {[
                                                             { label: 'Monthly paid subs', val: Math.round(cur.newSubsPerMonth) },
-                                                            { label: 'CPA', val: '$'+cur.cpa.toFixed(2) },
+                                                            { label: 'CPA', val: '
+</body>
+<\/html>
++cur.cpa.toFixed(2) },
                                                             { label: 'Payback month', val: cur.paybackMonth ? 'Mo. '+cur.paybackMonth : '>24mo' },
                                                             { label: 'Break-even month', val: cur.breakEvenMonth ? 'Mo. '+cur.breakEvenMonth : '>24mo' },
-                                                            { label: 'Peak cash deficit', val: '$'+Math.abs(cur.peakDeficit).toFixed(0) },
+                                                            { label: 'Peak cash deficit', val: '
+</body>
+<\/html>
++Math.abs(cur.peakDeficit).toFixed(0) },
                                                             { label: '12M ROAS', val: (cur.roas12*100).toFixed(0)+'%' },
                                                             { label: '24M ROAS', val: (cur.roas24*100).toFixed(0)+'%' },
-                                                            { label: 'M24 MRR', val: '$'+cur.m24mrr.toFixed(0) },
+                                                            { label: 'M24 MRR', val: '
+</body>
+<\/html>
++cur.m24mrr.toFixed(0) },
                                                         ].map(r => (
                                                             <div key={r.label} className="flex justify-between text-xs">
                                                                 <span className="text-gray-500">{r.label}</span>
@@ -1488,13 +1545,22 @@ function Campaigns({ campaigns, campaignMeta, campaigns_raw, settings, timeframe
                                                     <div className="space-y-1.5">
                                                         {[
                                                             { label: 'Monthly paid subs', cv: cur.newSubsPerMonth, wv: wif.newSubsPerMonth, fmt: v => Math.round(v), better: (c,w) => w > c },
-                                                            { label: 'CPA', cv: cur.cpa, wv: wif.cpa, fmt: v => '$'+v.toFixed(2), better: (c,w) => w < c },
+                                                            { label: 'CPA', cv: cur.cpa, wv: wif.cpa, fmt: v => '
+</body>
+<\/html>
++v.toFixed(2), better: (c,w) => w < c },
                                                             { label: 'Payback month', cv: cur.paybackMonth||99, wv: wif.paybackMonth||99, fmt: v => v >= 99 ? '>24mo' : 'Mo. '+v, better: (c,w) => w < c },
                                                             { label: 'Break-even month', cv: cur.breakEvenMonth||99, wv: wif.breakEvenMonth||99, fmt: v => v >= 99 ? '>24mo' : 'Mo. '+v, better: (c,w) => w < c },
-                                                            { label: 'Peak cash deficit', cv: Math.abs(cur.peakDeficit), wv: Math.abs(wif.peakDeficit), fmt: v => '$'+v.toFixed(0), better: (c,w) => w < c },
+                                                            { label: 'Peak cash deficit', cv: Math.abs(cur.peakDeficit), wv: Math.abs(wif.peakDeficit), fmt: v => '
+</body>
+<\/html>
++v.toFixed(0), better: (c,w) => w < c },
                                                             { label: '12M ROAS', cv: cur.roas12, wv: wif.roas12, fmt: v => (v*100).toFixed(0)+'%', better: (c,w) => w > c },
                                                             { label: '24M ROAS', cv: cur.roas24, wv: wif.roas24, fmt: v => (v*100).toFixed(0)+'%', better: (c,w) => w > c },
-                                                            { label: 'M24 MRR', cv: cur.m24mrr, wv: wif.m24mrr, fmt: v => '$'+v.toFixed(0), better: (c,w) => w > c },
+                                                            { label: 'M24 MRR', cv: cur.m24mrr, wv: wif.m24mrr, fmt: v => '
+</body>
+<\/html>
++v.toFixed(0), better: (c,w) => w > c },
                                                         ].map(r => {
                                                             const isGood = r.better(r.cv, r.wv);
                                                             const same = Math.abs(r.cv - r.wv) < 0.01;
@@ -1858,8 +1924,14 @@ function AdRevenue({ adRevenueData, settings }) {
     const arpdau7 = last7.length ? last7.reduce((s,r)=>s+r.arpdau,0)/last7.length : avgArpdau;
     const ecpm7   = last7.length ? last7.reduce((s,r)=>s+r.ecpm,0)/last7.length : avgEcpm;
 
-    const fmt2 = v => '$' + v.toFixed(2);
-    const fmt4 = v => '$' + v.toFixed(4);
+    const fmt2 = v => '
+</body>
+<\/html>
+ + v.toFixed(2);
+    const fmt4 = v => '
+</body>
+<\/html>
+ + v.toFixed(4);
 
     useEffect(() => {
         if (!hasData || !revChartRef.current) return;
@@ -2188,12 +2260,15 @@ function Retention() {
             options: {
                 responsive: true, maintainAspectRatio: false,
                 scales: {
-                    y: { beginAtZero: true, ticks: { callback: v => '$' + v.toFixed(3), font: { size: 10 } }, grid: { color: 'rgba(0,0,0,0.05)' } },
+                    y: { beginAtZero: true, ticks: { callback: v => '
+</body>
+<\/html>
+ + v.toFixed(3), font: { size: 10 } }, grid: { color: 'rgba(0,0,0,0.05)' } },
                     x: { ticks: { font: { size: 10 } } }
                 },
                 plugins: {
                     legend: { display: false },
-                    tooltip: { callbacks: { label: ctx => `LTV: $${ctx.parsed.y.toFixed(4)}/install` } }
+                    tooltip: { callbacks: { label: ctx => `LTV: ${ctx.parsed.y.toFixed(4)}/install` } }
                 }
             }
         });
@@ -2331,886 +2406,6 @@ function Retention() {
         </div>
     );
 }
-
-
-    const BASELINE_DATA = [{"sub":"appletv","spend":8.86,"installs":5,"trials":3,"impressions":1476,"cpa":2.95,"cpi":1.77},{"sub":"dataisbeautiful","spend":15.97,"installs":13,"trials":5,"impressions":3369,"cpa":3.19,"cpi":1.23},{"sub":"datahoarder","spend":13.49,"installs":9,"trials":4,"impressions":2310,"cpa":3.37,"cpi":1.5},{"sub":"iosapps","spend":10.21,"installs":12,"trials":3,"impressions":1453,"cpa":3.4,"cpi":0.85},{"sub":"applewatchultra","spend":33.89,"installs":40,"trials":8,"impressions":6206,"cpa":4.24,"cpi":0.85},{"sub":"technews","spend":25.78,"installs":17,"trials":6,"impressions":5462,"cpa":4.3,"cpi":1.52},{"sub":"economics","spend":17.34,"installs":10,"trials":4,"impressions":3889,"cpa":4.34,"cpi":1.73},{"sub":"macapps","spend":21.79,"installs":23,"trials":5,"impressions":3125,"cpa":4.36,"cpi":0.95},{"sub":"futurology","spend":22.93,"installs":12,"trials":5,"impressions":4333,"cpa":4.59,"cpi":1.91},{"sub":"gadgets","spend":34.87,"installs":22,"trials":7,"impressions":6565,"cpa":4.98,"cpi":1.59},{"sub":"law","spend":89.41,"installs":43,"trials":16,"impressions":20388,"cpa":5.59,"cpi":2.08},{"sub":"todayilearned","spend":97.57,"installs":64,"trials":16,"impressions":22364,"cpa":6.1,"cpi":1.52},{"sub":"science","spend":33.49,"installs":23,"trials":5,"impressions":7184,"cpa":6.7,"cpi":1.46},{"sub":"mac","spend":224.59,"installs":229,"trials":33,"impressions":40650,"cpa":6.81,"cpi":0.98},{"sub":"macos","spend":205.13,"installs":231,"trials":29,"impressions":34546,"cpa":7.07,"cpi":0.89},{"sub":"movies","spend":30.37,"installs":17,"trials":4,"impressions":7269,"cpa":7.59,"cpi":1.79},{"sub":"ipad","spend":116.52,"installs":131,"trials":15,"impressions":21677,"cpa":7.77,"cpi":0.89},{"sub":"television","spend":24.22,"installs":9,"trials":3,"impressions":5758,"cpa":8.07,"cpi":2.69},{"sub":"shortcuts","spend":173.21,"installs":198,"trials":20,"impressions":26143,"cpa":8.66,"cpi":0.87},{"sub":"news","spend":977.82,"installs":818,"trials":104,"impressions":224285,"cpa":9.4,"cpi":1.2},{"sub":"macbook","spend":48.5,"installs":54,"trials":5,"impressions":8132,"cpa":9.7,"cpi":0.9},{"sub":"macbookpro","spend":107.56,"installs":103,"trials":11,"impressions":19655,"cpa":9.78,"cpi":1.04},{"sub":"ipadpro","spend":64.63,"installs":71,"trials":6,"impressions":12118,"cpa":10.77,"cpi":0.91},{"sub":"nottheonion","spend":392.03,"installs":397,"trials":36,"impressions":92179,"cpa":10.89,"cpi":0.99},{"sub":"entertainment","spend":80.38,"installs":38,"trials":7,"impressions":18875,"cpa":11.48,"cpi":2.12},{"sub":"music","spend":91.97,"installs":53,"trials":8,"impressions":21203,"cpa":11.5,"cpi":1.74},{"sub":"politics","spend":53.69,"installs":25,"trials":4,"impressions":13216,"cpa":13.42,"cpi":2.15},{"sub":"applehelp","spend":82.43,"installs":25,"trials":6,"impressions":15267,"cpa":13.74,"cpi":3.3},{"sub":"ios","spend":489.63,"installs":272,"trials":35,"impressions":78762,"cpa":13.99,"cpi":1.8},{"sub":"applewatch","spend":396.55,"installs":202,"trials":26,"impressions":71740,"cpa":15.25,"cpi":1.96},{"sub":"apple","spend":1159.44,"installs":512,"trials":73,"impressions":207469,"cpa":15.88,"cpi":2.26},{"sub":"iphone","spend":858.22,"installs":363,"trials":42,"impressions":153503,"cpa":20.43,"cpi":2.36},{"sub":"iosbeta","spend":231.22,"installs":134,"trials":11,"impressions":32317,"cpa":21.02,"cpi":1.73},{"sub":"apolloapp","spend":198.8,"installs":104,"trials":9,"impressions":33406,"cpa":22.09,"cpi":1.91},{"sub":"technology","spend":2337.38,"installs":802,"trials":98,"impressions":514041,"cpa":23.85,"cpi":2.91}];
-    const BASELINE_DAILY = {"apolloapp": {"2026-01-22": {"spend": 9.09, "installs": 3, "trials": 0, "impressions": 1491}, "2026-01-23": {"spend": 8.55, "installs": 4, "trials": 0, "impressions": 1385}, "2026-01-24": {"spend": 9.85, "installs": 9, "trials": 0, "impressions": 1574}, "2026-01-25": {"spend": 9.05, "installs": 11, "trials": 0, "impressions": 1804}, "2026-01-26": {"spend": 10.67, "installs": 6, "trials": 0, "impressions": 2305}, "2026-01-27": {"spend": 8.84, "installs": 3, "trials": 0, "impressions": 2098}, "2026-01-28": {"spend": 6.47, "installs": 2, "trials": 0, "impressions": 1157}, "2026-01-29": {"spend": 5.25, "installs": 0, "trials": 0, "impressions": 1150}, "2026-01-30": {"spend": 7.17, "installs": 1, "trials": 0, "impressions": 1249}, "2026-01-31": {"spend": 4.38, "installs": 1, "trials": 0, "impressions": 797}, "2026-02-01": {"spend": 10.55, "installs": 10, "trials": 0, "impressions": 1330}, "2026-02-02": {"spend": 8.18, "installs": 12, "trials": 0, "impressions": 1540}, "2026-02-03": {"spend": 7.28, "installs": 6, "trials": 0, "impressions": 1539}, "2026-02-04": {"spend": 8.39, "installs": 10, "trials": 0, "impressions": 1314}, "2026-02-05": {"spend": 8.2, "installs": 4, "trials": 0, "impressions": 1335}, "2026-02-06": {"spend": 6.96, "installs": 2, "trials": 0, "impressions": 1020}, "2026-02-07": {"spend": 4.13, "installs": 0, "trials": 1, "impressions": 692}, "2026-02-08": {"spend": 3.27, "installs": 1, "trials": 1, "impressions": 416}, "2026-02-09": {"spend": 3.44, "installs": 0, "trials": 0, "impressions": 525}, "2026-02-10": {"spend": 2.75, "installs": 1, "trials": 0, "impressions": 686}, "2026-02-11": {"spend": 5.85, "installs": 2, "trials": 0, "impressions": 1012}, "2026-02-12": {"spend": 8.97, "installs": 2, "trials": 0, "impressions": 1577}, "2026-02-13": {"spend": 5.08, "installs": 1, "trials": 0, "impressions": 1026}, "2026-02-14": {"spend": 7.58, "installs": 2, "trials": 1, "impressions": 944}, "2026-02-16": {"spend": 2.9, "installs": 1, "trials": 1, "impressions": 602}, "2026-02-17": {"spend": 6.98, "installs": 2, "trials": 0, "impressions": 688}, "2026-02-18": {"spend": 6.25, "installs": 3, "trials": 1, "impressions": 520}, "2026-02-19": {"spend": 4.58, "installs": 0, "trials": 0, "impressions": 468}, "2026-02-20": {"spend": 4.41, "installs": 1, "trials": 1, "impressions": 458}, "2026-02-15": {"spend": 3.73, "installs": 4, "trials": 3, "impressions": 704}}, "apple": {"2026-01-22": {"spend": 43.4, "installs": 8, "trials": 0, "impressions": 7618}, "2026-01-23": {"spend": 51.14, "installs": 12, "trials": 0, "impressions": 7504}, "2026-01-24": {"spend": 52.6, "installs": 36, "trials": 0, "impressions": 9220}, "2026-01-25": {"spend": 46.99, "installs": 43, "trials": 0, "impressions": 9847}, "2026-01-26": {"spend": 53.51, "installs": 26, "trials": 0, "impressions": 10966}, "2026-01-27": {"spend": 50.9, "installs": 34, "trials": 0, "impressions": 11837}, "2026-01-28": {"spend": 33.71, "installs": 4, "trials": 0, "impressions": 6107}, "2026-01-29": {"spend": 35.17, "installs": 4, "trials": 0, "impressions": 6126}, "2026-01-30": {"spend": 38.73, "installs": 9, "trials": 0, "impressions": 7644}, "2026-01-31": {"spend": 23.79, "installs": 14, "trials": 0, "impressions": 4655}, "2026-02-01": {"spend": 54.38, "installs": 31, "trials": 0, "impressions": 7929}, "2026-02-02": {"spend": 41.49, "installs": 34, "trials": 0, "impressions": 9346}, "2026-02-03": {"spend": 43.22, "installs": 24, "trials": 0, "impressions": 9511}, "2026-02-04": {"spend": 41.59, "installs": 25, "trials": 1, "impressions": 8141}, "2026-02-05": {"spend": 43.59, "installs": 23, "trials": 9, "impressions": 8169}, "2026-02-06": {"spend": 45.9, "installs": 20, "trials": 6, "impressions": 7208}, "2026-02-07": {"spend": 32.92, "installs": 17, "trials": 6, "impressions": 5042}, "2026-02-08": {"spend": 27.28, "installs": 7, "trials": 2, "impressions": 3505}, "2026-02-09": {"spend": 24.65, "installs": 12, "trials": 4, "impressions": 5040}, "2026-02-10": {"spend": 29.81, "installs": 10, "trials": 3, "impressions": 5254}, "2026-02-11": {"spend": 44.01, "installs": 16, "trials": 2, "impressions": 7428}, "2026-02-12": {"spend": 50.06, "installs": 15, "trials": 7, "impressions": 10464}, "2026-02-13": {"spend": 42.48, "installs": 16, "trials": 3, "impressions": 7477}, "2026-02-14": {"spend": 37.89, "installs": 23, "trials": 9, "impressions": 6755}, "2026-02-15": {"spend": 29.7, "installs": 13, "trials": 7, "impressions": 4872}, "2026-02-16": {"spend": 21.22, "installs": 8, "trials": 3, "impressions": 4264}, "2026-02-17": {"spend": 40.99, "installs": 10, "trials": 6, "impressions": 4803}, "2026-02-18": {"spend": 26.83, "installs": 9, "trials": 3, "impressions": 3882}, "2026-02-19": {"spend": 27.94, "installs": 4, "trials": 1, "impressions": 3350}, "2026-02-20": {"spend": 23.54, "installs": 5, "trials": 1, "impressions": 3505}}, "applehelp": {"2026-01-22": {"spend": 3.65, "installs": 0, "trials": 0, "impressions": 525}, "2026-01-23": {"spend": 3.87, "installs": 0, "trials": 0, "impressions": 516}, "2026-01-24": {"spend": 3.54, "installs": 1, "trials": 0, "impressions": 663}, "2026-01-25": {"spend": 4.06, "installs": 5, "trials": 0, "impressions": 782}, "2026-01-26": {"spend": 3.88, "installs": 2, "trials": 0, "impressions": 757}, "2026-01-27": {"spend": 4.24, "installs": 1, "trials": 0, "impressions": 893}, "2026-01-28": {"spend": 2.53, "installs": 0, "trials": 0, "impressions": 489}, "2026-01-29": {"spend": 2.38, "installs": 0, "trials": 0, "impressions": 438}, "2026-01-30": {"spend": 2.58, "installs": 1, "trials": 0, "impressions": 487}, "2026-01-31": {"spend": 0.93, "installs": 0, "trials": 0, "impressions": 149}, "2026-02-01": {"spend": 2.84, "installs": 2, "trials": 0, "impressions": 661}, "2026-02-02": {"spend": 3.34, "installs": 2, "trials": 0, "impressions": 720}, "2026-02-03": {"spend": 3.41, "installs": 3, "trials": 0, "impressions": 759}, "2026-02-04": {"spend": 2.81, "installs": 1, "trials": 0, "impressions": 708}, "2026-02-05": {"spend": 2.72, "installs": 1, "trials": 0, "impressions": 641}, "2026-02-06": {"spend": 3.27, "installs": 0, "trials": 0, "impressions": 640}, "2026-02-07": {"spend": 1.87, "installs": 1, "trials": 1, "impressions": 415}, "2026-02-08": {"spend": 1.33, "installs": 0, "trials": 0, "impressions": 225}, "2026-02-09": {"spend": 1.99, "installs": 0, "trials": 0, "impressions": 338}, "2026-02-10": {"spend": 1.04, "installs": 0, "trials": 0, "impressions": 233}, "2026-02-11": {"spend": 3.22, "installs": 0, "trials": 0, "impressions": 527}, "2026-02-12": {"spend": 1.63, "installs": 0, "trials": 0, "impressions": 533}, "2026-02-13": {"spend": 2.42, "installs": 0, "trials": 0, "impressions": 482}, "2026-02-14": {"spend": 2.1, "installs": 2, "trials": 3, "impressions": 612}, "2026-02-15": {"spend": 2.23, "installs": 1, "trials": 0, "impressions": 428}, "2026-02-16": {"spend": 2.37, "installs": 1, "trials": 0, "impressions": 351}, "2026-02-17": {"spend": 4.88, "installs": 1, "trials": 1, "impressions": 451}, "2026-02-18": {"spend": 2.63, "installs": 0, "trials": 0, "impressions": 348}, "2026-02-19": {"spend": 3.15, "installs": 0, "trials": 1, "impressions": 261}, "2026-02-20": {"spend": 1.5, "installs": 0, "trials": 0, "impressions": 235}}, "applewatch": {"2026-01-22": {"spend": 15.6, "installs": 4, "trials": 0, "impressions": 2623}, "2026-01-23": {"spend": 19.15, "installs": 15, "trials": 0, "impressions": 2818}, "2026-01-24": {"spend": 20.06, "installs": 27, "trials": 0, "impressions": 3649}, "2026-01-25": {"spend": 17.65, "installs": 14, "trials": 0, "impressions": 3838}, "2026-01-26": {"spend": 19.13, "installs": 9, "trials": 0, "impressions": 3957}, "2026-01-27": {"spend": 17.96, "installs": 10, "trials": 0, "impressions": 4255}, "2026-01-28": {"spend": 11.63, "installs": 1, "trials": 0, "impressions": 2013}, "2026-01-29": {"spend": 11.26, "installs": 0, "trials": 0, "impressions": 1938}, "2026-01-30": {"spend": 11.02, "installs": 4, "trials": 0, "impressions": 2338}, "2026-01-31": {"spend": 8.92, "installs": 8, "trials": 0, "impressions": 1752}, "2026-02-01": {"spend": 18.13, "installs": 18, "trials": 0, "impressions": 2968}, "2026-02-02": {"spend": 15.69, "installs": 14, "trials": 0, "impressions": 3250}, "2026-02-03": {"spend": 16.36, "installs": 11, "trials": 0, "impressions": 3289}, "2026-02-04": {"spend": 11.75, "installs": 10, "trials": 1, "impressions": 2781}, "2026-02-05": {"spend": 14.77, "installs": 9, "trials": 3, "impressions": 2755}, "2026-02-06": {"spend": 12.62, "installs": 2, "trials": 1, "impressions": 2429}, "2026-02-07": {"spend": 12.24, "installs": 7, "trials": 3, "impressions": 1618}, "2026-02-08": {"spend": 5.98, "installs": 2, "trials": 1, "impressions": 987}, "2026-02-09": {"spend": 6.8, "installs": 2, "trials": 0, "impressions": 1403}, "2026-02-10": {"spend": 6.33, "installs": 1, "trials": 1, "impressions": 1446}, "2026-02-11": {"spend": 14.85, "installs": 3, "trials": 1, "impressions": 2187}, "2026-02-12": {"spend": 15.81, "installs": 4, "trials": 2, "impressions": 3253}, "2026-02-13": {"spend": 13.9, "installs": 6, "trials": 2, "impressions": 2528}, "2026-02-14": {"spend": 16.47, "installs": 8, "trials": 4, "impressions": 2639}, "2026-02-15": {"spend": 11.63, "installs": 5, "trials": 3, "impressions": 1816}, "2026-02-16": {"spend": 7.71, "installs": 3, "trials": 1, "impressions": 1633}, "2026-02-17": {"spend": 16.58, "installs": 3, "trials": 2, "impressions": 1818}, "2026-02-18": {"spend": 8.88, "installs": 2, "trials": 1, "impressions": 1353}, "2026-02-19": {"spend": 9.08, "installs": 0, "trials": 0, "impressions": 1225}, "2026-02-20": {"spend": 8.59, "installs": 0, "trials": 0, "impressions": 1181}}, "ios": {"2026-01-22": {"spend": 16.57, "installs": 8, "trials": 0, "impressions": 2562}, "2026-01-23": {"spend": 21.35, "installs": 10, "trials": 0, "impressions": 2684}, "2026-01-24": {"spend": 20.55, "installs": 22, "trials": 0, "impressions": 3363}, "2026-01-25": {"spend": 21.86, "installs": 28, "trials": 0, "impressions": 3813}, "2026-01-26": {"spend": 20.68, "installs": 13, "trials": 0, "impressions": 4025}, "2026-01-27": {"spend": 22.41, "installs": 13, "trials": 0, "impressions": 4479}, "2026-01-28": {"spend": 10.44, "installs": 2, "trials": 0, "impressions": 2066}, "2026-01-29": {"spend": 12.37, "installs": 0, "trials": 0, "impressions": 2034}, "2026-01-30": {"spend": 12.53, "installs": 3, "trials": 0, "impressions": 2564}, "2026-01-31": {"spend": 10.64, "installs": 11, "trials": 0, "impressions": 1825}, "2026-02-01": {"spend": 27.63, "installs": 21, "trials": 0, "impressions": 3231}, "2026-02-02": {"spend": 15.96, "installs": 17, "trials": 0, "impressions": 3528}, "2026-02-03": {"spend": 19.17, "installs": 12, "trials": 0, "impressions": 3766}, "2026-02-04": {"spend": 16.23, "installs": 13, "trials": 1, "impressions": 3305}, "2026-02-05": {"spend": 19.68, "installs": 11, "trials": 4, "impressions": 3227}, "2026-02-06": {"spend": 21.19, "installs": 8, "trials": 1, "impressions": 3087}, "2026-02-07": {"spend": 15.52, "installs": 12, "trials": 6, "impressions": 2075}, "2026-02-08": {"spend": 9.34, "installs": 2, "trials": 2, "impressions": 1300}, "2026-02-09": {"spend": 11.06, "installs": 8, "trials": 2, "impressions": 1913}, "2026-02-10": {"spend": 12.3, "installs": 6, "trials": 2, "impressions": 1949}, "2026-02-11": {"spend": 20.38, "installs": 5, "trials": 1, "impressions": 2837}, "2026-02-12": {"spend": 22.8, "installs": 6, "trials": 2, "impressions": 3689}, "2026-02-13": {"spend": 19.69, "installs": 7, "trials": 1, "impressions": 2831}, "2026-02-14": {"spend": 17.22, "installs": 8, "trials": 4, "impressions": 2770}, "2026-02-15": {"spend": 12.47, "installs": 7, "trials": 4, "impressions": 1949}, "2026-02-16": {"spend": 9.71, "installs": 7, "trials": 1, "impressions": 1754}, "2026-02-17": {"spend": 13.43, "installs": 5, "trials": 3, "impressions": 1901}, "2026-02-18": {"spend": 9.27, "installs": 4, "trials": 0, "impressions": 1567}, "2026-02-19": {"spend": 13.83, "installs": 1, "trials": 0, "impressions": 1362}, "2026-02-20": {"spend": 13.33, "installs": 2, "trials": 1, "impressions": 1306}}, "iosbeta": {"2026-01-22": {"spend": 9.44, "installs": 4, "trials": 0, "impressions": 1046}, "2026-01-23": {"spend": 10.77, "installs": 8, "trials": 0, "impressions": 1157}, "2026-01-24": {"spend": 9.59, "installs": 10, "trials": 0, "impressions": 1574}, "2026-01-25": {"spend": 10.77, "installs": 15, "trials": 0, "impressions": 1732}, "2026-01-26": {"spend": 9.48, "installs": 7, "trials": 0, "impressions": 1840}, "2026-01-27": {"spend": 10.94, "installs": 10, "trials": 0, "impressions": 1974}, "2026-01-28": {"spend": 6.44, "installs": 0, "trials": 0, "impressions": 748}, "2026-01-29": {"spend": 4.36, "installs": 0, "trials": 0, "impressions": 788}, "2026-01-30": {"spend": 7.39, "installs": 2, "trials": 0, "impressions": 1064}, "2026-01-31": {"spend": 4.72, "installs": 4, "trials": 0, "impressions": 767}, "2026-02-01": {"spend": 8.84, "installs": 10, "trials": 0, "impressions": 1372}, "2026-02-02": {"spend": 11.05, "installs": 13, "trials": 0, "impressions": 1631}, "2026-02-03": {"spend": 9.13, "installs": 6, "trials": 0, "impressions": 1605}, "2026-02-04": {"spend": 9.15, "installs": 6, "trials": 0, "impressions": 1471}, "2026-02-05": {"spend": 11.13, "installs": 9, "trials": 2, "impressions": 1333}, "2026-02-06": {"spend": 7.58, "installs": 2, "trials": 0, "impressions": 1150}, "2026-02-07": {"spend": 8.02, "installs": 3, "trials": 2, "impressions": 702}, "2026-02-08": {"spend": 3.27, "installs": 2, "trials": 0, "impressions": 397}, "2026-02-09": {"spend": 3.9, "installs": 0, "trials": 1, "impressions": 589}, "2026-02-10": {"spend": 5.23, "installs": 1, "trials": 0, "impressions": 583}, "2026-02-11": {"spend": 6.68, "installs": 1, "trials": 0, "impressions": 1073}, "2026-02-12": {"spend": 11.75, "installs": 2, "trials": 1, "impressions": 1448}, "2026-02-13": {"spend": 8.5, "installs": 2, "trials": 1, "impressions": 1015}, "2026-02-14": {"spend": 7.52, "installs": 3, "trials": 1, "impressions": 1166}, "2026-02-15": {"spend": 6.14, "installs": 6, "trials": 1, "impressions": 833}, "2026-02-16": {"spend": 5.12, "installs": 3, "trials": 1, "impressions": 767}, "2026-02-17": {"spend": 7.35, "installs": 2, "trials": 1, "impressions": 800}, "2026-02-18": {"spend": 7.25, "installs": 1, "trials": 0, "impressions": 642}, "2026-02-19": {"spend": 4.96, "installs": 1, "trials": 0, "impressions": 558}, "2026-02-20": {"spend": 4.76, "installs": 1, "trials": 0, "impressions": 492}}, "iphone": {"2026-01-22": {"spend": 33.11, "installs": 10, "trials": 0, "impressions": 5622}, "2026-01-23": {"spend": 35.79, "installs": 12, "trials": 0, "impressions": 5419}, "2026-01-24": {"spend": 35.22, "installs": 27, "trials": 0, "impressions": 6536}, "2026-01-25": {"spend": 35.97, "installs": 34, "trials": 0, "impressions": 7022}, "2026-01-26": {"spend": 37.54, "installs": 21, "trials": 0, "impressions": 7701}, "2026-01-27": {"spend": 37.33, "installs": 22, "trials": 0, "impressions": 8502}, "2026-01-28": {"spend": 26.32, "installs": 2, "trials": 0, "impressions": 4574}, "2026-01-29": {"spend": 24.0, "installs": 1, "trials": 0, "impressions": 4421}, "2026-01-30": {"spend": 25.63, "installs": 7, "trials": 0, "impressions": 5381}, "2026-01-31": {"spend": 19.36, "installs": 12, "trials": 0, "impressions": 3707}, "2026-02-01": {"spend": 42.59, "installs": 21, "trials": 0, "impressions": 6237}, "2026-02-02": {"spend": 31.79, "installs": 23, "trials": 0, "impressions": 6475}, "2026-02-03": {"spend": 28.35, "installs": 19, "trials": 0, "impressions": 7007}, "2026-02-04": {"spend": 31.51, "installs": 17, "trials": 1, "impressions": 6081}, "2026-02-05": {"spend": 33.4, "installs": 15, "trials": 3, "impressions": 6053}, "2026-02-06": {"spend": 32.08, "installs": 8, "trials": 2, "impressions": 5257}, "2026-02-07": {"spend": 26.52, "installs": 9, "trials": 3, "impressions": 3878}, "2026-02-08": {"spend": 16.48, "installs": 5, "trials": 0, "impressions": 2548}, "2026-02-09": {"spend": 19.53, "installs": 8, "trials": 2, "impressions": 3627}, "2026-02-10": {"spend": 22.98, "installs": 10, "trials": 4, "impressions": 3804}, "2026-02-11": {"spend": 34.39, "installs": 11, "trials": 2, "impressions": 5713}, "2026-02-12": {"spend": 41.66, "installs": 9, "trials": 4, "impressions": 8288}, "2026-02-13": {"spend": 33.34, "installs": 7, "trials": 3, "impressions": 6215}, "2026-02-14": {"spend": 28.41, "installs": 15, "trials": 6, "impressions": 5348}, "2026-02-15": {"spend": 19.82, "installs": 12, "trials": 5, "impressions": 3642}, "2026-02-16": {"spend": 16.86, "installs": 5, "trials": 0, "impressions": 3027}, "2026-02-17": {"spend": 30.19, "installs": 8, "trials": 3, "impressions": 3641}, "2026-02-18": {"spend": 20.14, "installs": 7, "trials": 2, "impressions": 2857}, "2026-02-19": {"spend": 18.32, "installs": 3, "trials": 1, "impressions": 2405}, "2026-02-20": {"spend": 19.59, "installs": 3, "trials": 1, "impressions": 2515}}, "technology": {"2026-01-22": {"spend": 89.66, "installs": 11, "trials": 0, "impressions": 18861}, "2026-01-23": {"spend": 86.33, "installs": 29, "trials": 0, "impressions": 16347}, "2026-01-24": {"spend": 90.21, "installs": 43, "trials": 0, "impressions": 19109}, "2026-01-25": {"spend": 91.27, "installs": 45, "trials": 0, "impressions": 23703}, "2026-01-26": {"spend": 93.21, "installs": 45, "trials": 0, "impressions": 23897}, "2026-01-27": {"spend": 89.66, "installs": 47, "trials": 0, "impressions": 26014}, "2026-01-28": {"spend": 86.0, "installs": 18, "trials": 0, "impressions": 22900}, "2026-01-29": {"spend": 72.98, "installs": 7, "trials": 0, "impressions": 18484}, "2026-01-30": {"spend": 81.05, "installs": 14, "trials": 0, "impressions": 22239}, "2026-01-31": {"spend": 54.46, "installs": 38, "trials": 0, "impressions": 13813}, "2026-02-01": {"spend": 126.05, "installs": 49, "trials": 0, "impressions": 21784}, "2026-02-02": {"spend": 83.93, "installs": 63, "trials": 0, "impressions": 21068}, "2026-02-03": {"spend": 86.9, "installs": 43, "trials": 0, "impressions": 23992}, "2026-02-04": {"spend": 89.59, "installs": 49, "trials": 1, "impressions": 20531}, "2026-02-05": {"spend": 87.31, "installs": 44, "trials": 14, "impressions": 19050}, "2026-02-06": {"spend": 86.93, "installs": 29, "trials": 8, "impressions": 17090}, "2026-02-07": {"spend": 66.41, "installs": 26, "trials": 10, "impressions": 11573}, "2026-02-08": {"spend": 59.37, "installs": 11, "trials": 3, "impressions": 8340}, "2026-02-09": {"spend": 55.58, "installs": 11, "trials": 3, "impressions": 12016}, "2026-02-10": {"spend": 59.56, "installs": 14, "trials": 5, "impressions": 13336}, "2026-02-11": {"spend": 89.66, "installs": 18, "trials": 5, "impressions": 17822}, "2026-02-12": {"spend": 105.09, "installs": 21, "trials": 7, "impressions": 25956}, "2026-02-13": {"spend": 74.81, "installs": 15, "trials": 3, "impressions": 17058}, "2026-02-14": {"spend": 58.85, "installs": 24, "trials": 7, "impressions": 14210}, "2026-02-15": {"spend": 57.61, "installs": 28, "trials": 12, "impressions": 11130}, "2026-02-16": {"spend": 44.16, "installs": 18, "trials": 8, "impressions": 9822}, "2026-02-17": {"spend": 97.02, "installs": 15, "trials": 5, "impressions": 14100}, "2026-02-18": {"spend": 60.72, "installs": 13, "trials": 4, "impressions": 10035}, "2026-02-19": {"spend": 51.84, "installs": 5, "trials": 1, "impressions": 9114}, "2026-02-20": {"spend": 61.15, "installs": 9, "trials": 2, "impressions": 10647}}, "appletv": {"2026-01-22": {"spend": 0.01, "installs": 0, "trials": 0, "impressions": 2}, "2026-01-24": {"spend": 0.01, "installs": 0, "trials": 0, "impressions": 1}, "2026-01-25": {"spend": 0.02, "installs": 0, "trials": 0, "impressions": 3}, "2026-01-26": {"spend": 0.02, "installs": 0, "trials": 0, "impressions": 3}, "2026-01-27": {"spend": 0.04, "installs": 0, "trials": 0, "impressions": 9}, "2026-01-28": {"spend": 0.05, "installs": 0, "trials": 0, "impressions": 12}, "2026-01-29": {"spend": 0.02, "installs": 0, "trials": 0, "impressions": 6}, "2026-01-30": {"spend": 0.01, "installs": 0, "trials": 0, "impressions": 4}, "2026-02-01": {"spend": 0.01, "installs": 0, "trials": 0, "impressions": 3}, "2026-02-03": {"spend": 0.17, "installs": 0, "trials": 0, "impressions": 43}, "2026-02-04": {"spend": 0.16, "installs": 0, "trials": 0, "impressions": 36}, "2026-02-05": {"spend": 0.26, "installs": 0, "trials": 0, "impressions": 55}, "2026-02-06": {"spend": 0.91, "installs": 0, "trials": 0, "impressions": 83}, "2026-02-07": {"spend": 0.78, "installs": 0, "trials": 0, "impressions": 116}, "2026-02-08": {"spend": 0.59, "installs": 2, "trials": 2, "impressions": 70}, "2026-02-09": {"spend": 0.82, "installs": 0, "trials": 0, "impressions": 155}, "2026-02-10": {"spend": 0.75, "installs": 0, "trials": 0, "impressions": 127}, "2026-02-11": {"spend": 0.68, "installs": 1, "trials": 0, "impressions": 125}, "2026-02-12": {"spend": 0.66, "installs": 2, "trials": 0, "impressions": 123}, "2026-02-13": {"spend": 0.67, "installs": 0, "trials": 0, "impressions": 117}, "2026-02-14": {"spend": 0.8, "installs": 0, "trials": 0, "impressions": 89}, "2026-02-15": {"spend": 0.24, "installs": 0, "trials": 0, "impressions": 50}, "2026-02-16": {"spend": 0.27, "installs": 0, "trials": 0, "impressions": 67}, "2026-02-17": {"spend": 0.15, "installs": 0, "trials": 0, "impressions": 36}, "2026-02-18": {"spend": 0.18, "installs": 0, "trials": 0, "impressions": 44}, "2026-02-19": {"spend": 0.23, "installs": 0, "trials": 1, "impressions": 48}, "2026-02-20": {"spend": 0.34, "installs": 0, "trials": 0, "impressions": 49}}, "applewatchultra": {"2026-01-22": {"spend": 1.46, "installs": 2, "trials": 0, "impressions": 157}, "2026-01-23": {"spend": 2.9, "installs": 3, "trials": 0, "impressions": 294}, "2026-01-24": {"spend": 2.92, "installs": 6, "trials": 0, "impressions": 488}, "2026-01-25": {"spend": 2.72, "installs": 5, "trials": 0, "impressions": 502}, "2026-01-26": {"spend": 1.84, "installs": 0, "trials": 0, "impressions": 416}, "2026-01-27": {"spend": 1.75, "installs": 3, "trials": 0, "impressions": 429}, "2026-01-28": {"spend": 0.62, "installs": 0, "trials": 0, "impressions": 146}, "2026-01-29": {"spend": 0.26, "installs": 0, "trials": 0, "impressions": 65}, "2026-01-30": {"spend": 0.65, "installs": 1, "trials": 0, "impressions": 132}, "2026-01-31": {"spend": 0.86, "installs": 0, "trials": 0, "impressions": 310}, "2026-02-01": {"spend": 2.33, "installs": 4, "trials": 0, "impressions": 433}, "2026-02-02": {"spend": 1.52, "installs": 2, "trials": 0, "impressions": 398}, "2026-02-03": {"spend": 1.35, "installs": 1, "trials": 0, "impressions": 399}, "2026-02-04": {"spend": 1.78, "installs": 1, "trials": 0, "impressions": 321}, "2026-02-05": {"spend": 0.95, "installs": 1, "trials": 0, "impressions": 274}, "2026-02-06": {"spend": 1.69, "installs": 2, "trials": 1, "impressions": 270}, "2026-02-07": {"spend": 1.35, "installs": 3, "trials": 2, "impressions": 175}, "2026-02-08": {"spend": 0.53, "installs": 1, "trials": 1, "impressions": 30}, "2026-02-09": {"spend": 0.3, "installs": 0, "trials": 0, "impressions": 32}, "2026-02-10": {"spend": 0.32, "installs": 0, "trials": 0, "impressions": 64}, "2026-02-11": {"spend": 1.5, "installs": 0, "trials": 0, "impressions": 140}, "2026-02-14": {"spend": 1.36, "installs": 2, "trials": 3, "impressions": 243}, "2026-02-15": {"spend": 0.78, "installs": 0, "trials": 0, "impressions": 162}, "2026-02-16": {"spend": 0.4, "installs": 1, "trials": 0, "impressions": 132}, "2026-02-17": {"spend": 1.21, "installs": 2, "trials": 1, "impressions": 172}, "2026-02-19": {"spend": 0.55, "installs": 0, "trials": 0, "impressions": 22}}, "dataisbeautiful": {"2026-01-22": {"spend": 0.03, "installs": 0, "trials": 0, "impressions": 10}, "2026-01-23": {"spend": 0.02, "installs": 0, "trials": 0, "impressions": 3}, "2026-01-24": {"spend": 0.02, "installs": 0, "trials": 0, "impressions": 2}, "2026-01-25": {"spend": 0.01, "installs": 0, "trials": 0, "impressions": 1}, "2026-01-26": {"spend": 0.02, "installs": 1, "trials": 0, "impressions": 3}, "2026-01-27": {"spend": 0.05, "installs": 0, "trials": 0, "impressions": 10}, "2026-01-28": {"spend": 0.13, "installs": 0, "trials": 0, "impressions": 51}, "2026-01-29": {"spend": 0.04, "installs": 0, "trials": 0, "impressions": 22}, "2026-01-30": {"spend": 0.02, "installs": 0, "trials": 0, "impressions": 10}, "2026-01-31": {"spend": 0.02, "installs": 0, "trials": 0, "impressions": 8}, "2026-02-01": {"spend": 0.01, "installs": 0, "trials": 0, "impressions": 8}, "2026-02-02": {"spend": 0.0, "installs": 0, "trials": 0, "impressions": 2}, "2026-02-03": {"spend": 1.15, "installs": 0, "trials": 0, "impressions": 359}, "2026-02-04": {"spend": 1.2, "installs": 0, "trials": 0, "impressions": 272}, "2026-02-05": {"spend": 0.97, "installs": 1, "trials": 1, "impressions": 215}, "2026-02-06": {"spend": 1.02, "installs": 3, "trials": 0, "impressions": 165}, "2026-02-07": {"spend": 1.09, "installs": 2, "trials": 2, "impressions": 183}, "2026-02-08": {"spend": 1.29, "installs": 1, "trials": 1, "impressions": 134}, "2026-02-09": {"spend": 1.0, "installs": 0, "trials": 0, "impressions": 198}, "2026-02-10": {"spend": 0.93, "installs": 1, "trials": 1, "impressions": 181}, "2026-02-11": {"spend": 0.84, "installs": 0, "trials": 0, "impressions": 158}, "2026-02-12": {"spend": 1.06, "installs": 1, "trials": 0, "impressions": 187}, "2026-02-13": {"spend": 0.87, "installs": 2, "trials": 0, "impressions": 153}, "2026-02-14": {"spend": 0.78, "installs": 1, "trials": 0, "impressions": 170}, "2026-02-15": {"spend": 0.74, "installs": 0, "trials": 0, "impressions": 190}, "2026-02-16": {"spend": 0.57, "installs": 0, "trials": 0, "impressions": 150}, "2026-02-17": {"spend": 0.51, "installs": 0, "trials": 0, "impressions": 149}, "2026-02-18": {"spend": 0.59, "installs": 0, "trials": 0, "impressions": 151}, "2026-02-19": {"spend": 0.48, "installs": 0, "trials": 0, "impressions": 104}, "2026-02-20": {"spend": 0.51, "installs": 0, "trials": 0, "impressions": 120}}, "economics": {"2026-01-22": {"spend": 0.06, "installs": 0, "trials": 0, "impressions": 20}, "2026-01-23": {"spend": 0.02, "installs": 0, "trials": 0, "impressions": 1}, "2026-01-24": {"spend": 0.01, "installs": 0, "trials": 0, "impressions": 2}, "2026-01-26": {"spend": 0.01, "installs": 0, "trials": 0, "impressions": 2}, "2026-01-27": {"spend": 0.05, "installs": 0, "trials": 0, "impressions": 11}, "2026-01-28": {"spend": 0.18, "installs": 0, "trials": 0, "impressions": 69}, "2026-01-29": {"spend": 0.03, "installs": 0, "trials": 0, "impressions": 17}, "2026-01-30": {"spend": 0.01, "installs": 0, "trials": 0, "impressions": 9}, "2026-01-31": {"spend": 0.02, "installs": 0, "trials": 0, "impressions": 6}, "2026-02-01": {"spend": 0.02, "installs": 0, "trials": 0, "impressions": 9}, "2026-02-02": {"spend": 0.01, "installs": 0, "trials": 0, "impressions": 3}, "2026-02-03": {"spend": 1.84, "installs": 0, "trials": 0, "impressions": 584}, "2026-02-04": {"spend": 1.69, "installs": 0, "trials": 0, "impressions": 404}, "2026-02-05": {"spend": 0.56, "installs": 1, "trials": 0, "impressions": 129}, "2026-02-06": {"spend": 0.95, "installs": 1, "trials": 0, "impressions": 162}, "2026-02-07": {"spend": 1.12, "installs": 2, "trials": 2, "impressions": 197}, "2026-02-08": {"spend": 1.4, "installs": 1, "trials": 0, "impressions": 196}, "2026-02-09": {"spend": 1.15, "installs": 0, "trials": 0, "impressions": 245}, "2026-02-10": {"spend": 0.82, "installs": 1, "trials": 1, "impressions": 160}, "2026-02-11": {"spend": 1.08, "installs": 0, "trials": 0, "impressions": 195}, "2026-02-12": {"spend": 0.69, "installs": 1, "trials": 0, "impressions": 136}, "2026-02-13": {"spend": 0.78, "installs": 1, "trials": 0, "impressions": 140}, "2026-02-14": {"spend": 0.76, "installs": 0, "trials": 0, "impressions": 157}, "2026-02-15": {"spend": 0.89, "installs": 1, "trials": 0, "impressions": 215}, "2026-02-16": {"spend": 0.62, "installs": 0, "trials": 0, "impressions": 156}, "2026-02-17": {"spend": 0.48, "installs": 0, "trials": 0, "impressions": 147}, "2026-02-18": {"spend": 0.6, "installs": 1, "trials": 1, "impressions": 148}, "2026-02-19": {"spend": 0.81, "installs": 0, "trials": 0, "impressions": 192}, "2026-02-20": {"spend": 0.7, "installs": 0, "trials": 0, "impressions": 177}}, "entertainment": {"2026-01-22": {"spend": 0.23, "installs": 0, "trials": 0, "impressions": 74}, "2026-01-23": {"spend": 0.12, "installs": 0, "trials": 0, "impressions": 12}, "2026-01-24": {"spend": 0.04, "installs": 0, "trials": 0, "impressions": 9}, "2026-01-25": {"spend": 0.05, "installs": 0, "trials": 0, "impressions": 12}, "2026-01-26": {"spend": 0.01, "installs": 0, "trials": 0, "impressions": 2}, "2026-01-27": {"spend": 0.13, "installs": 0, "trials": 0, "impressions": 34}, "2026-01-28": {"spend": 0.66, "installs": 0, "trials": 0, "impressions": 315}, "2026-01-29": {"spend": 0.18, "installs": 0, "trials": 0, "impressions": 94}, "2026-01-30": {"spend": 0.11, "installs": 0, "trials": 0, "impressions": 54}, "2026-01-31": {"spend": 0.11, "installs": 0, "trials": 0, "impressions": 39}, "2026-02-01": {"spend": 0.15, "installs": 0, "trials": 0, "impressions": 63}, "2026-02-02": {"spend": 0.01, "installs": 0, "trials": 0, "impressions": 6}, "2026-02-03": {"spend": 6.66, "installs": 0, "trials": 0, "impressions": 2151}, "2026-02-04": {"spend": 5.91, "installs": 3, "trials": 0, "impressions": 1377}, "2026-02-05": {"spend": 2.53, "installs": 1, "trials": 0, "impressions": 572}, "2026-02-06": {"spend": 3.14, "installs": 2, "trials": 0, "impressions": 567}, "2026-02-07": {"spend": 3.34, "installs": 2, "trials": 1, "impressions": 579}, "2026-02-08": {"spend": 3.19, "installs": 2, "trials": 1, "impressions": 472}, "2026-02-09": {"spend": 3.3, "installs": 2, "trials": 0, "impressions": 688}, "2026-02-10": {"spend": 2.41, "installs": 1, "trials": 0, "impressions": 472}, "2026-02-11": {"spend": 3.43, "installs": 3, "trials": 2, "impressions": 618}, "2026-02-12": {"spend": 3.64, "installs": 1, "trials": 0, "impressions": 664}, "2026-02-13": {"spend": 4.18, "installs": 3, "trials": 0, "impressions": 728}, "2026-02-14": {"spend": 4.72, "installs": 1, "trials": 0, "impressions": 1059}, "2026-02-15": {"spend": 6.21, "installs": 3, "trials": 0, "impressions": 1568}, "2026-02-16": {"spend": 5.65, "installs": 7, "trials": 2, "impressions": 1463}, "2026-02-17": {"spend": 5.5, "installs": 2, "trials": 0, "impressions": 1534}, "2026-02-18": {"spend": 5.13, "installs": 1, "trials": 1, "impressions": 1285}, "2026-02-19": {"spend": 5.32, "installs": 3, "trials": 0, "impressions": 1263}, "2026-02-20": {"spend": 4.3, "installs": 1, "trials": 0, "impressions": 1101}}, "futurology": {"2026-01-22": {"spend": 0.03, "installs": 0, "trials": 0, "impressions": 8}, "2026-01-25": {"spend": 0.0, "installs": 0, "trials": 0, "impressions": 1}, "2026-01-27": {"spend": 0.0, "installs": 0, "trials": 0, "impressions": 2}, "2026-01-28": {"spend": 0.04, "installs": 0, "trials": 0, "impressions": 15}, "2026-01-29": {"spend": 0.05, "installs": 0, "trials": 0, "impressions": 11}, "2026-01-30": {"spend": 0.02, "installs": 0, "trials": 0, "impressions": 5}, "2026-01-31": {"spend": 0.0, "installs": 0, "trials": 0, "impressions": 1}, "2026-02-01": {"spend": 0.02, "installs": 0, "trials": 0, "impressions": 6}, "2026-02-03": {"spend": 1.09, "installs": 0, "trials": 0, "impressions": 299}, "2026-02-04": {"spend": 0.91, "installs": 0, "trials": 0, "impressions": 222}, "2026-02-05": {"spend": 1.29, "installs": 0, "trials": 0, "impressions": 274}, "2026-02-06": {"spend": 1.65, "installs": 1, "trials": 1, "impressions": 247}, "2026-02-07": {"spend": 1.77, "installs": 0, "trials": 0, "impressions": 270}, "2026-02-08": {"spend": 1.79, "installs": 1, "trials": 1, "impressions": 233}, "2026-02-09": {"spend": 1.88, "installs": 1, "trials": 0, "impressions": 319}, "2026-02-10": {"spend": 1.46, "installs": 1, "trials": 0, "impressions": 254}, "2026-02-11": {"spend": 1.81, "installs": 1, "trials": 0, "impressions": 305}, "2026-02-12": {"spend": 1.56, "installs": 2, "trials": 1, "impressions": 274}, "2026-02-13": {"spend": 1.37, "installs": 2, "trials": 0, "impressions": 246}, "2026-02-14": {"spend": 1.04, "installs": 0, "trials": 0, "impressions": 203}, "2026-02-15": {"spend": 0.94, "installs": 0, "trials": 0, "impressions": 223}, "2026-02-16": {"spend": 0.92, "installs": 1, "trials": 0, "impressions": 204}, "2026-02-17": {"spend": 0.55, "installs": 0, "trials": 0, "impressions": 138}, "2026-02-18": {"spend": 0.77, "installs": 1, "trials": 1, "impressions": 167}, "2026-02-19": {"spend": 1.09, "installs": 0, "trials": 0, "impressions": 209}, "2026-02-20": {"spend": 0.87, "installs": 1, "trials": 1, "impressions": 197}}, "gadgets": {"2026-01-22": {"spend": 0.03, "installs": 0, "trials": 0, "impressions": 6}, "2026-01-23": {"spend": 0.02, "installs": 0, "trials": 0, "impressions": 4}, "2026-01-24": {"spend": 0.02, "installs": 0, "trials": 0, "impressions": 4}, "2026-01-28": {"spend": 0.03, "installs": 0, "trials": 0, "impressions": 6}, "2026-01-29": {"spend": 0.01, "installs": 0, "trials": 0, "impressions": 1}, "2026-01-30": {"spend": 0.01, "installs": 0, "trials": 0, "impressions": 2}, "2026-01-31": {"spend": 0.0, "installs": 0, "trials": 0, "impressions": 1}, "2026-02-01": {"spend": 0.0, "installs": 0, "trials": 0, "impressions": 1}, "2026-02-03": {"spend": 0.75, "installs": 0, "trials": 0, "impressions": 221}, "2026-02-04": {"spend": 0.69, "installs": 1, "trials": 0, "impressions": 143}, "2026-02-05": {"spend": 1.54, "installs": 0, "trials": 0, "impressions": 322}, "2026-02-06": {"spend": 2.04, "installs": 3, "trials": 1, "impressions": 333}, "2026-02-07": {"spend": 2.75, "installs": 4, "trials": 2, "impressions": 409}, "2026-02-08": {"spend": 2.42, "installs": 2, "trials": 1, "impressions": 336}, "2026-02-09": {"spend": 2.58, "installs": 0, "trials": 0, "impressions": 454}, "2026-02-10": {"spend": 2.03, "installs": 2, "trials": 1, "impressions": 351}, "2026-02-11": {"spend": 2.2, "installs": 0, "trials": 0, "impressions": 390}, "2026-02-12": {"spend": 2.46, "installs": 2, "trials": 1, "impressions": 437}, "2026-02-13": {"spend": 2.6, "installs": 2, "trials": 0, "impressions": 453}, "2026-02-14": {"spend": 2.06, "installs": 2, "trials": 0, "impressions": 405}, "2026-02-15": {"spend": 2.0, "installs": 0, "trials": 0, "impressions": 450}, "2026-02-16": {"spend": 1.91, "installs": 3, "trials": 1, "impressions": 426}, "2026-02-17": {"spend": 1.53, "installs": 0, "trials": 0, "impressions": 343}, "2026-02-18": {"spend": 1.42, "installs": 1, "trials": 0, "impressions": 294}, "2026-02-19": {"spend": 2.23, "installs": 0, "trials": 0, "impressions": 442}, "2026-02-20": {"spend": 1.51, "installs": 0, "trials": 0, "impressions": 331}}, "ipad": {"2026-01-22": {"spend": 3.8, "installs": 3, "trials": 0, "impressions": 435}, "2026-01-23": {"spend": 5.83, "installs": 8, "trials": 0, "impressions": 588}, "2026-01-24": {"spend": 6.44, "installs": 12, "trials": 0, "impressions": 1117}, "2026-01-25": {"spend": 6.12, "installs": 9, "trials": 0, "impressions": 1224}, "2026-01-26": {"spend": 6.4, "installs": 9, "trials": 0, "impressions": 1415}, "2026-01-27": {"spend": 5.52, "installs": 8, "trials": 0, "impressions": 1269}, "2026-01-28": {"spend": 1.35, "installs": 0, "trials": 0, "impressions": 330}, "2026-01-29": {"spend": 0.79, "installs": 1, "trials": 0, "impressions": 216}, "2026-01-30": {"spend": 1.27, "installs": 1, "trials": 0, "impressions": 444}, "2026-01-31": {"spend": 4.41, "installs": 4, "trials": 0, "impressions": 893}, "2026-02-01": {"spend": 6.13, "installs": 9, "trials": 0, "impressions": 1114}, "2026-02-02": {"spend": 5.87, "installs": 7, "trials": 0, "impressions": 1250}, "2026-02-03": {"spend": 5.37, "installs": 8, "trials": 0, "impressions": 1132}, "2026-02-04": {"spend": 3.82, "installs": 6, "trials": 1, "impressions": 1061}, "2026-02-05": {"spend": 5.85, "installs": 8, "trials": 0, "impressions": 1220}, "2026-02-06": {"spend": 5.31, "installs": 1, "trials": 1, "impressions": 1105}, "2026-02-07": {"spend": 2.44, "installs": 3, "trials": 2, "impressions": 627}, "2026-02-08": {"spend": 1.6, "installs": 2, "trials": 3, "impressions": 224}, "2026-02-09": {"spend": 1.43, "installs": 3, "trials": 0, "impressions": 258}, "2026-02-10": {"spend": 1.59, "installs": 2, "trials": 1, "impressions": 459}, "2026-02-11": {"spend": 5.51, "installs": 3, "trials": 0, "impressions": 742}, "2026-02-12": {"spend": 3.63, "installs": 1, "trials": 0, "impressions": 662}, "2026-02-13": {"spend": 4.13, "installs": 4, "trials": 1, "impressions": 718}, "2026-02-14": {"spend": 5.34, "installs": 3, "trials": 1, "impressions": 954}, "2026-02-15": {"spend": 5.94, "installs": 7, "trials": 3, "impressions": 608}, "2026-02-16": {"spend": 3.77, "installs": 3, "trials": 1, "impressions": 527}, "2026-02-17": {"spend": 3.41, "installs": 2, "trials": 0, "impressions": 564}, "2026-02-18": {"spend": 2.07, "installs": 3, "trials": 1, "impressions": 270}, "2026-02-19": {"spend": 0.34, "installs": 0, "trials": 0, "impressions": 64}, "2026-02-20": {"spend": 1.02, "installs": 1, "trials": 0, "impressions": 187}}, "ipadpro": {"2026-01-22": {"spend": 2.53, "installs": 4, "trials": 0, "impressions": 287}, "2026-01-23": {"spend": 3.82, "installs": 3, "trials": 0, "impressions": 417}, "2026-01-24": {"spend": 4.02, "installs": 11, "trials": 0, "impressions": 694}, "2026-01-25": {"spend": 3.85, "installs": 4, "trials": 0, "impressions": 781}, "2026-01-26": {"spend": 3.66, "installs": 5, "trials": 0, "impressions": 824}, "2026-01-27": {"spend": 3.58, "installs": 6, "trials": 0, "impressions": 826}, "2026-01-28": {"spend": 0.7, "installs": 0, "trials": 0, "impressions": 174}, "2026-01-29": {"spend": 0.43, "installs": 0, "trials": 0, "impressions": 104}, "2026-01-30": {"spend": 0.81, "installs": 0, "trials": 0, "impressions": 215}, "2026-01-31": {"spend": 2.6, "installs": 3, "trials": 0, "impressions": 485}, "2026-02-01": {"spend": 3.3, "installs": 4, "trials": 0, "impressions": 695}, "2026-02-02": {"spend": 3.96, "installs": 5, "trials": 0, "impressions": 810}, "2026-02-03": {"spend": 2.11, "installs": 2, "trials": 0, "impressions": 676}, "2026-02-04": {"spend": 2.8, "installs": 4, "trials": 0, "impressions": 633}, "2026-02-05": {"spend": 2.53, "installs": 3, "trials": 0, "impressions": 677}, "2026-02-06": {"spend": 4.04, "installs": 3, "trials": 1, "impressions": 618}, "2026-02-07": {"spend": 1.58, "installs": 2, "trials": 0, "impressions": 344}, "2026-02-08": {"spend": 1.68, "installs": 3, "trials": 1, "impressions": 128}, "2026-02-09": {"spend": 0.67, "installs": 0, "trials": 0, "impressions": 123}, "2026-02-10": {"spend": 1.18, "installs": 0, "trials": 0, "impressions": 217}, "2026-02-11": {"spend": 2.86, "installs": 2, "trials": 0, "impressions": 372}, "2026-02-12": {"spend": 0.85, "installs": 1, "trials": 1, "impressions": 265}, "2026-02-13": {"spend": 2.69, "installs": 1, "trials": 0, "impressions": 297}, "2026-02-14": {"spend": 3.42, "installs": 1, "trials": 1, "impressions": 461}, "2026-02-15": {"spend": 2.22, "installs": 0, "trials": 1, "impressions": 316}, "2026-02-16": {"spend": 0.59, "installs": 0, "trials": 0, "impressions": 248}, "2026-02-17": {"spend": 0.94, "installs": 2, "trials": 0, "impressions": 280}, "2026-02-18": {"spend": 0.98, "installs": 1, "trials": 1, "impressions": 109}, "2026-02-19": {"spend": 0.08, "installs": 0, "trials": 0, "impressions": 17}, "2026-02-20": {"spend": 0.14, "installs": 1, "trials": 0, "impressions": 25}}, "law": {"2026-01-22": {"spend": 0.38, "installs": 0, "trials": 0, "impressions": 124}, "2026-01-23": {"spend": 0.09, "installs": 0, "trials": 0, "impressions": 9}, "2026-01-24": {"spend": 0.08, "installs": 0, "trials": 0, "impressions": 19}, "2026-01-25": {"spend": 0.04, "installs": 0, "trials": 0, "impressions": 9}, "2026-01-26": {"spend": 0.06, "installs": 0, "trials": 0, "impressions": 11}, "2026-01-27": {"spend": 0.2, "installs": 0, "trials": 0, "impressions": 63}, "2026-01-28": {"spend": 1.58, "installs": 1, "trials": 0, "impressions": 742}, "2026-01-29": {"spend": 0.17, "installs": 0, "trials": 0, "impressions": 73}, "2026-01-30": {"spend": 0.07, "installs": 0, "trials": 0, "impressions": 31}, "2026-01-31": {"spend": 0.06, "installs": 0, "trials": 0, "impressions": 20}, "2026-02-01": {"spend": 0.07, "installs": 0, "trials": 0, "impressions": 43}, "2026-02-02": {"spend": 0.02, "installs": 0, "trials": 0, "impressions": 4}, "2026-02-03": {"spend": 0.54, "installs": 0, "trials": 0, "impressions": 206}, "2026-02-04": {"spend": 0.63, "installs": 0, "trials": 0, "impressions": 147}, "2026-02-05": {"spend": 3.79, "installs": 2, "trials": 1, "impressions": 890}, "2026-02-06": {"spend": 4.5, "installs": 5, "trials": 1, "impressions": 826}, "2026-02-07": {"spend": 5.15, "installs": 2, "trials": 2, "impressions": 934}, "2026-02-08": {"spend": 5.56, "installs": 4, "trials": 4, "impressions": 755}, "2026-02-09": {"spend": 4.97, "installs": 4, "trials": 0, "impressions": 1033}, "2026-02-10": {"spend": 3.74, "installs": 1, "trials": 1, "impressions": 744}, "2026-02-11": {"spend": 4.8, "installs": 3, "trials": 0, "impressions": 874}, "2026-02-12": {"spend": 5.65, "installs": 6, "trials": 4, "impressions": 970}, "2026-02-13": {"spend": 5.17, "installs": 1, "trials": 0, "impressions": 922}, "2026-02-14": {"spend": 5.63, "installs": 2, "trials": 0, "impressions": 1384}, "2026-02-15": {"spend": 6.28, "installs": 0, "trials": 0, "impressions": 1669}, "2026-02-16": {"spend": 5.57, "installs": 4, "trials": 1, "impressions": 1497}, "2026-02-17": {"spend": 6.57, "installs": 2, "trials": 1, "impressions": 1832}, "2026-02-18": {"spend": 5.93, "installs": 2, "trials": 0, "impressions": 1548}, "2026-02-19": {"spend": 6.2, "installs": 2, "trials": 0, "impressions": 1468}, "2026-02-20": {"spend": 5.89, "installs": 2, "trials": 1, "impressions": 1541}}, "mac": {"2026-01-22": {"spend": 6.1, "installs": 4, "trials": 0, "impressions": 654}, "2026-01-23": {"spend": 8.32, "installs": 5, "trials": 0, "impressions": 849}, "2026-01-24": {"spend": 9.85, "installs": 19, "trials": 0, "impressions": 1762}, "2026-01-25": {"spend": 11.59, "installs": 15, "trials": 0, "impressions": 2208}, "2026-01-26": {"spend": 12.45, "installs": 14, "trials": 0, "impressions": 2611}, "2026-01-27": {"spend": 10.8, "installs": 13, "trials": 0, "impressions": 2465}, "2026-01-28": {"spend": 2.61, "installs": 3, "trials": 0, "impressions": 613}, "2026-01-29": {"spend": 1.51, "installs": 2, "trials": 0, "impressions": 396}, "2026-01-30": {"spend": 3.11, "installs": 5, "trials": 0, "impressions": 828}, "2026-01-31": {"spend": 6.16, "installs": 8, "trials": 0, "impressions": 1614}, "2026-02-01": {"spend": 10.24, "installs": 14, "trials": 0, "impressions": 2121}, "2026-02-02": {"spend": 10.54, "installs": 14, "trials": 0, "impressions": 2388}, "2026-02-03": {"spend": 9.75, "installs": 12, "trials": 0, "impressions": 2199}, "2026-02-04": {"spend": 9.51, "installs": 12, "trials": 0, "impressions": 2056}, "2026-02-05": {"spend": 11.97, "installs": 10, "trials": 2, "impressions": 2281}, "2026-02-06": {"spend": 12.96, "installs": 1, "trials": 0, "impressions": 2154}, "2026-02-07": {"spend": 8.27, "installs": 10, "trials": 5, "impressions": 1339}, "2026-02-08": {"spend": 4.21, "installs": 2, "trials": 2, "impressions": 564}, "2026-02-09": {"spend": 5.07, "installs": 10, "trials": 3, "impressions": 833}, "2026-02-10": {"spend": 4.82, "installs": 3, "trials": 1, "impressions": 986}, "2026-02-11": {"spend": 9.16, "installs": 8, "trials": 3, "impressions": 1533}, "2026-02-12": {"spend": 7.62, "installs": 6, "trials": 3, "impressions": 1265}, "2026-02-13": {"spend": 8.86, "installs": 8, "trials": 3, "impressions": 1335}, "2026-02-14": {"spend": 11.3, "installs": 9, "trials": 4, "impressions": 1631}, "2026-02-15": {"spend": 9.57, "installs": 9, "trials": 4, "impressions": 1132}, "2026-02-16": {"spend": 5.33, "installs": 2, "trials": 0, "impressions": 821}, "2026-02-17": {"spend": 7.3, "installs": 5, "trials": 2, "impressions": 967}, "2026-02-18": {"spend": 1.79, "installs": 3, "trials": 1, "impressions": 443}, "2026-02-19": {"spend": 1.44, "installs": 1, "trials": 0, "impressions": 288}, "2026-02-20": {"spend": 2.38, "installs": 2, "trials": 0, "impressions": 314}}, "macbook": {"2026-01-22": {"spend": 1.29, "installs": 2, "trials": 0, "impressions": 141}, "2026-01-23": {"spend": 2.06, "installs": 0, "trials": 0, "impressions": 224}, "2026-01-24": {"spend": 2.22, "installs": 5, "trials": 0, "impressions": 376}, "2026-01-25": {"spend": 2.51, "installs": 4, "trials": 0, "impressions": 477}, "2026-01-26": {"spend": 2.41, "installs": 2, "trials": 0, "impressions": 504}, "2026-01-27": {"spend": 2.15, "installs": 0, "trials": 0, "impressions": 502}, "2026-01-28": {"spend": 0.5, "installs": 1, "trials": 0, "impressions": 122}, "2026-01-29": {"spend": 0.31, "installs": 0, "trials": 0, "impressions": 78}, "2026-01-30": {"spend": 0.71, "installs": 2, "trials": 0, "impressions": 161}, "2026-01-31": {"spend": 1.29, "installs": 3, "trials": 0, "impressions": 311}, "2026-02-01": {"spend": 2.59, "installs": 1, "trials": 0, "impressions": 462}, "2026-02-02": {"spend": 1.86, "installs": 1, "trials": 0, "impressions": 469}, "2026-02-03": {"spend": 1.72, "installs": 2, "trials": 0, "impressions": 478}, "2026-02-04": {"spend": 2.28, "installs": 6, "trials": 0, "impressions": 467}, "2026-02-05": {"spend": 2.72, "installs": 2, "trials": 0, "impressions": 464}, "2026-02-06": {"spend": 3.38, "installs": 0, "trials": 0, "impressions": 490}, "2026-02-07": {"spend": 1.75, "installs": 2, "trials": 0, "impressions": 274}, "2026-02-08": {"spend": 0.55, "installs": 0, "trials": 0, "impressions": 79}, "2026-02-09": {"spend": 0.34, "installs": 0, "trials": 0, "impressions": 60}, "2026-02-10": {"spend": 0.55, "installs": 1, "trials": 0, "impressions": 91}, "2026-02-11": {"spend": 0.75, "installs": 2, "trials": 1, "impressions": 271}, "2026-02-12": {"spend": 1.11, "installs": 1, "trials": 0, "impressions": 186}, "2026-02-13": {"spend": 1.45, "installs": 2, "trials": 0, "impressions": 255}, "2026-02-14": {"spend": 3.83, "installs": 5, "trials": 3, "impressions": 365}, "2026-02-15": {"spend": 2.22, "installs": 1, "trials": 0, "impressions": 232}, "2026-02-16": {"spend": 1.47, "installs": 3, "trials": 0, "impressions": 201}, "2026-02-17": {"spend": 2.63, "installs": 3, "trials": 0, "impressions": 213}, "2026-02-18": {"spend": 0.85, "installs": 2, "trials": 1, "impressions": 98}, "2026-02-19": {"spend": 0.07, "installs": 0, "trials": 0, "impressions": 14}, "2026-02-20": {"spend": 0.92, "installs": 1, "trials": 0, "impressions": 67}}, "macbookpro": {"2026-01-22": {"spend": 2.88, "installs": 5, "trials": 0, "impressions": 303}, "2026-01-23": {"spend": 4.24, "installs": 4, "trials": 0, "impressions": 423}, "2026-01-24": {"spend": 4.67, "installs": 13, "trials": 0, "impressions": 826}, "2026-01-25": {"spend": 5.87, "installs": 3, "trials": 0, "impressions": 1120}, "2026-01-26": {"spend": 6.63, "installs": 8, "trials": 0, "impressions": 1411}, "2026-01-27": {"spend": 6.17, "installs": 5, "trials": 0, "impressions": 1399}, "2026-01-28": {"spend": 1.19, "installs": 0, "trials": 0, "impressions": 266}, "2026-01-29": {"spend": 0.58, "installs": 1, "trials": 0, "impressions": 154}, "2026-01-30": {"spend": 1.15, "installs": 3, "trials": 0, "impressions": 343}, "2026-01-31": {"spend": 2.48, "installs": 4, "trials": 0, "impressions": 709}, "2026-02-01": {"spend": 5.26, "installs": 10, "trials": 0, "impressions": 1122}, "2026-02-02": {"spend": 5.47, "installs": 3, "trials": 0, "impressions": 1183}, "2026-02-03": {"spend": 4.98, "installs": 4, "trials": 0, "impressions": 1170}, "2026-02-04": {"spend": 3.88, "installs": 4, "trials": 0, "impressions": 1045}, "2026-02-05": {"spend": 7.62, "installs": 6, "trials": 1, "impressions": 1128}, "2026-02-06": {"spend": 5.99, "installs": 4, "trials": 0, "impressions": 1063}, "2026-02-07": {"spend": 4.65, "installs": 3, "trials": 1, "impressions": 630}, "2026-02-08": {"spend": 1.9, "installs": 1, "trials": 1, "impressions": 227}, "2026-02-09": {"spend": 2.31, "installs": 1, "trials": 1, "impressions": 336}, "2026-02-10": {"spend": 1.48, "installs": 2, "trials": 1, "impressions": 259}, "2026-02-11": {"spend": 3.16, "installs": 3, "trials": 1, "impressions": 639}, "2026-02-12": {"spend": 3.37, "installs": 1, "trials": 0, "impressions": 577}, "2026-02-13": {"spend": 3.64, "installs": 5, "trials": 0, "impressions": 631}, "2026-02-14": {"spend": 3.96, "installs": 2, "trials": 2, "impressions": 810}, "2026-02-15": {"spend": 5.91, "installs": 2, "trials": 1, "impressions": 523}, "2026-02-16": {"spend": 1.51, "installs": 1, "trials": 0, "impressions": 392}, "2026-02-17": {"spend": 2.95, "installs": 1, "trials": 0, "impressions": 492}, "2026-02-18": {"spend": 1.12, "installs": 1, "trials": 1, "impressions": 195}, "2026-02-19": {"spend": 0.69, "installs": 0, "trials": 0, "impressions": 125}, "2026-02-20": {"spend": 1.85, "installs": 3, "trials": 1, "impressions": 154}}, "macos": {"2026-01-22": {"spend": 4.84, "installs": 4, "trials": 0, "impressions": 513}, "2026-01-23": {"spend": 8.17, "installs": 9, "trials": 0, "impressions": 819}, "2026-01-24": {"spend": 9.16, "installs": 13, "trials": 0, "impressions": 1548}, "2026-01-25": {"spend": 10.6, "installs": 15, "trials": 0, "impressions": 1979}, "2026-01-26": {"spend": 9.55, "installs": 11, "trials": 0, "impressions": 1984}, "2026-01-27": {"spend": 9.16, "installs": 15, "trials": 0, "impressions": 2079}, "2026-01-28": {"spend": 2.23, "installs": 1, "trials": 0, "impressions": 484}, "2026-01-29": {"spend": 1.33, "installs": 1, "trials": 0, "impressions": 316}, "2026-01-30": {"spend": 2.82, "installs": 9, "trials": 0, "impressions": 620}, "2026-01-31": {"spend": 5.43, "installs": 9, "trials": 0, "impressions": 1199}, "2026-02-01": {"spend": 9.47, "installs": 17, "trials": 0, "impressions": 1818}, "2026-02-02": {"spend": 9.65, "installs": 12, "trials": 0, "impressions": 2162}, "2026-02-03": {"spend": 8.25, "installs": 13, "trials": 0, "impressions": 1833}, "2026-02-04": {"spend": 8.76, "installs": 9, "trials": 0, "impressions": 1915}, "2026-02-05": {"spend": 12.79, "installs": 16, "trials": 4, "impressions": 1917}, "2026-02-06": {"spend": 14.75, "installs": 7, "trials": 2, "impressions": 1932}, "2026-02-07": {"spend": 8.68, "installs": 9, "trials": 3, "impressions": 1194}, "2026-02-08": {"spend": 3.52, "installs": 4, "trials": 3, "impressions": 489}, "2026-02-09": {"spend": 4.85, "installs": 8, "trials": 2, "impressions": 739}, "2026-02-10": {"spend": 3.78, "installs": 2, "trials": 1, "impressions": 882}, "2026-02-11": {"spend": 6.56, "installs": 7, "trials": 2, "impressions": 1267}, "2026-02-12": {"spend": 5.87, "installs": 4, "trials": 0, "impressions": 1008}, "2026-02-13": {"spend": 8.7, "installs": 7, "trials": 2, "impressions": 1052}, "2026-02-14": {"spend": 9.6, "installs": 8, "trials": 2, "impressions": 1346}, "2026-02-15": {"spend": 7.28, "installs": 7, "trials": 4, "impressions": 959}, "2026-02-16": {"spend": 3.18, "installs": 2, "trials": 0, "impressions": 761}, "2026-02-17": {"spend": 9.18, "installs": 7, "trials": 4, "impressions": 872}, "2026-02-18": {"spend": 2.43, "installs": 3, "trials": 0, "impressions": 372}, "2026-02-19": {"spend": 2.51, "installs": 1, "trials": 0, "impressions": 234}, "2026-02-20": {"spend": 2.03, "installs": 1, "trials": 0, "impressions": 253}}, "movies": {"2026-01-22": {"spend": 0.14, "installs": 0, "trials": 0, "impressions": 43}, "2026-01-23": {"spend": 0.03, "installs": 0, "trials": 0, "impressions": 4}, "2026-01-24": {"spend": 0.12, "installs": 0, "trials": 0, "impressions": 16}, "2026-01-25": {"spend": 0.05, "installs": 0, "trials": 0, "impressions": 10}, "2026-01-26": {"spend": 0.02, "installs": 0, "trials": 0, "impressions": 6}, "2026-01-27": {"spend": 0.09, "installs": 1, "trials": 0, "impressions": 22}, "2026-01-28": {"spend": 0.5, "installs": 0, "trials": 0, "impressions": 243}, "2026-01-29": {"spend": 0.18, "installs": 1, "trials": 0, "impressions": 87}, "2026-01-30": {"spend": 0.14, "installs": 0, "trials": 0, "impressions": 53}, "2026-01-31": {"spend": 0.11, "installs": 0, "trials": 0, "impressions": 38}, "2026-02-01": {"spend": 0.18, "installs": 0, "trials": 0, "impressions": 78}, "2026-02-02": {"spend": 0.06, "installs": 1, "trials": 0, "impressions": 16}, "2026-02-03": {"spend": 3.69, "installs": 0, "trials": 0, "impressions": 1174}, "2026-02-04": {"spend": 3.15, "installs": 1, "trials": 0, "impressions": 788}, "2026-02-05": {"spend": 1.46, "installs": 1, "trials": 0, "impressions": 357}, "2026-02-06": {"spend": 2.18, "installs": 0, "trials": 0, "impressions": 339}, "2026-02-07": {"spend": 1.67, "installs": 0, "trials": 0, "impressions": 300}, "2026-02-08": {"spend": 1.98, "installs": 2, "trials": 1, "impressions": 227}, "2026-02-09": {"spend": 1.47, "installs": 3, "trials": 0, "impressions": 295}, "2026-02-10": {"spend": 1.0, "installs": 3, "trials": 2, "impressions": 207}, "2026-02-11": {"spend": 1.39, "installs": 1, "trials": 0, "impressions": 254}, "2026-02-12": {"spend": 0.69, "installs": 0, "trials": 0, "impressions": 125}, "2026-02-13": {"spend": 0.71, "installs": 0, "trials": 0, "impressions": 130}, "2026-02-14": {"spend": 1.12, "installs": 0, "trials": 0, "impressions": 277}, "2026-02-15": {"spend": 1.26, "installs": 0, "trials": 0, "impressions": 316}, "2026-02-16": {"spend": 1.16, "installs": 2, "trials": 1, "impressions": 313}, "2026-02-17": {"spend": 1.21, "installs": 0, "trials": 0, "impressions": 371}, "2026-02-18": {"spend": 1.48, "installs": 1, "trials": 0, "impressions": 390}, "2026-02-19": {"spend": 1.51, "installs": 0, "trials": 0, "impressions": 372}, "2026-02-20": {"spend": 1.61, "installs": 0, "trials": 0, "impressions": 418}}, "music": {"2026-01-22": {"spend": 0.09, "installs": 0, "trials": 0, "impressions": 36}, "2026-01-23": {"spend": 0.04, "installs": 0, "trials": 0, "impressions": 6}, "2026-01-24": {"spend": 0.04, "installs": 0, "trials": 0, "impressions": 7}, "2026-01-25": {"spend": 0.03, "installs": 0, "trials": 0, "impressions": 5}, "2026-01-26": {"spend": 0.0, "installs": 0, "trials": 0, "impressions": 1}, "2026-01-27": {"spend": 0.06, "installs": 0, "trials": 0, "impressions": 22}, "2026-01-28": {"spend": 0.39, "installs": 0, "trials": 0, "impressions": 186}, "2026-01-29": {"spend": 0.17, "installs": 0, "trials": 0, "impressions": 64}, "2026-01-30": {"spend": 0.05, "installs": 0, "trials": 0, "impressions": 24}, "2026-01-31": {"spend": 0.05, "installs": 0, "trials": 0, "impressions": 21}, "2026-02-01": {"spend": 0.08, "installs": 0, "trials": 0, "impressions": 33}, "2026-02-02": {"spend": 0.03, "installs": 0, "trials": 0, "impressions": 8}, "2026-02-03": {"spend": 5.28, "installs": 0, "trials": 0, "impressions": 1757}, "2026-02-04": {"spend": 4.76, "installs": 4, "trials": 0, "impressions": 1188}, "2026-02-05": {"spend": 3.57, "installs": 3, "trials": 1, "impressions": 843}, "2026-02-06": {"spend": 4.64, "installs": 3, "trials": 1, "impressions": 834}, "2026-02-07": {"spend": 4.6, "installs": 6, "trials": 1, "impressions": 821}, "2026-02-08": {"spend": 5.16, "installs": 4, "trials": 1, "impressions": 758}, "2026-02-09": {"spend": 5.52, "installs": 0, "trials": 0, "impressions": 1117}, "2026-02-10": {"spend": 4.03, "installs": 4, "trials": 1, "impressions": 806}, "2026-02-11": {"spend": 5.43, "installs": 3, "trials": 1, "impressions": 1002}, "2026-02-12": {"spend": 5.6, "installs": 5, "trials": 1, "impressions": 1069}, "2026-02-13": {"spend": 5.84, "installs": 5, "trials": 0, "impressions": 1079}, "2026-02-14": {"spend": 5.91, "installs": 1, "trials": 0, "impressions": 1366}, "2026-02-15": {"spend": 5.96, "installs": 2, "trials": 0, "impressions": 1622}, "2026-02-16": {"spend": 5.18, "installs": 5, "trials": 1, "impressions": 1378}, "2026-02-17": {"spend": 4.72, "installs": 2, "trials": 0, "impressions": 1392}, "2026-02-18": {"spend": 4.51, "installs": 1, "trials": 0, "impressions": 1195}, "2026-02-19": {"spend": 5.45, "installs": 4, "trials": 0, "impressions": 1317}, "2026-02-20": {"spend": 4.8, "installs": 1, "trials": 0, "impressions": 1246}}, "news": {"2026-01-22": {"spend": 32.88, "installs": 12, "trials": 0, "impressions": 4407}, "2026-01-23": {"spend": 30.73, "installs": 23, "trials": 0, "impressions": 3501}, "2026-01-24": {"spend": 33.22, "installs": 48, "trials": 0, "impressions": 6146}, "2026-01-25": {"spend": 31.65, "installs": 47, "trials": 0, "impressions": 6587}, "2026-01-26": {"spend": 33.21, "installs": 37, "trials": 0, "impressions": 7679}, "2026-01-27": {"spend": 34.04, "installs": 42, "trials": 0, "impressions": 8688}, "2026-01-28": {"spend": 32.98, "installs": 19, "trials": 0, "impressions": 11288}, "2026-01-29": {"spend": 19.44, "installs": 9, "trials": 0, "impressions": 7498}, "2026-01-30": {"spend": 26.83, "installs": 20, "trials": 0, "impressions": 13654}, "2026-01-31": {"spend": 43.08, "installs": 43, "trials": 0, "impressions": 12519}, "2026-02-01": {"spend": 36.58, "installs": 47, "trials": 0, "impressions": 10570}, "2026-02-02": {"spend": 42.14, "installs": 59, "trials": 0, "impressions": 9671}, "2026-02-03": {"spend": 53.18, "installs": 44, "trials": 0, "impressions": 13230}, "2026-02-04": {"spend": 55.48, "installs": 55, "trials": 1, "impressions": 13186}, "2026-02-05": {"spend": 46.76, "installs": 38, "trials": 12, "impressions": 11342}, "2026-02-06": {"spend": 47.28, "installs": 33, "trials": 10, "impressions": 9884}, "2026-02-07": {"spend": 28.25, "installs": 26, "trials": 12, "impressions": 5205}, "2026-02-08": {"spend": 15.66, "installs": 11, "trials": 6, "impressions": 2362}, "2026-02-09": {"spend": 15.45, "installs": 12, "trials": 1, "impressions": 3408}, "2026-02-10": {"spend": 13.91, "installs": 10, "trials": 3, "impressions": 2987}, "2026-02-11": {"spend": 34.99, "installs": 20, "trials": 6, "impressions": 6661}, "2026-02-12": {"spend": 28.73, "installs": 28, "trials": 9, "impressions": 5117}, "2026-02-13": {"spend": 32.67, "installs": 14, "trials": 2, "impressions": 5315}, "2026-02-14": {"spend": 41.97, "installs": 23, "trials": 7, "impressions": 8890}, "2026-02-15": {"spend": 45.52, "installs": 32, "trials": 14, "impressions": 8645}, "2026-02-16": {"spend": 31.36, "installs": 24, "trials": 10, "impressions": 6997}, "2026-02-17": {"spend": 39.03, "installs": 17, "trials": 5, "impressions": 7611}, "2026-02-18": {"spend": 20.32, "installs": 13, "trials": 3, "impressions": 4091}, "2026-02-19": {"spend": 15.28, "installs": 7, "trials": 1, "impressions": 3525}, "2026-02-20": {"spend": 15.19, "installs": 5, "trials": 2, "impressions": 3621}}, "nottheonion": {"2026-01-22": {"spend": 16.08, "installs": 7, "trials": 0, "impressions": 2163}, "2026-01-23": {"spend": 14.75, "installs": 19, "trials": 0, "impressions": 1699}, "2026-01-24": {"spend": 17.31, "installs": 30, "trials": 0, "impressions": 3213}, "2026-01-25": {"spend": 17.27, "installs": 26, "trials": 0, "impressions": 3627}, "2026-01-26": {"spend": 18.66, "installs": 25, "trials": 0, "impressions": 4319}, "2026-01-27": {"spend": 18.57, "installs": 29, "trials": 0, "impressions": 4710}, "2026-01-28": {"spend": 14.21, "installs": 10, "trials": 0, "impressions": 5068}, "2026-01-29": {"spend": 7.94, "installs": 4, "trials": 0, "impressions": 3331}, "2026-01-30": {"spend": 12.34, "installs": 9, "trials": 0, "impressions": 6382}, "2026-01-31": {"spend": 21.43, "installs": 24, "trials": 0, "impressions": 6218}, "2026-02-01": {"spend": 18.13, "installs": 29, "trials": 0, "impressions": 5361}, "2026-02-02": {"spend": 20.0, "installs": 29, "trials": 0, "impressions": 5600}, "2026-02-03": {"spend": 21.97, "installs": 25, "trials": 0, "impressions": 4907}, "2026-02-04": {"spend": 24.1, "installs": 21, "trials": 1, "impressions": 5387}, "2026-02-05": {"spend": 19.95, "installs": 15, "trials": 5, "impressions": 5114}, "2026-02-06": {"spend": 18.91, "installs": 11, "trials": 2, "impressions": 4508}, "2026-02-07": {"spend": 7.32, "installs": 4, "trials": 2, "impressions": 1678}, "2026-02-08": {"spend": 1.34, "installs": 3, "trials": 1, "impressions": 378}, "2026-02-09": {"spend": 0.67, "installs": 3, "trials": 0, "impressions": 465}, "2026-02-10": {"spend": 1.17, "installs": 3, "trials": 2, "impressions": 546}, "2026-02-11": {"spend": 12.9, "installs": 7, "trials": 1, "impressions": 2450}, "2026-02-12": {"spend": 8.13, "installs": 7, "trials": 2, "impressions": 1452}, "2026-02-13": {"spend": 8.97, "installs": 6, "trials": 2, "impressions": 1642}, "2026-02-14": {"spend": 21.44, "installs": 16, "trials": 6, "impressions": 3195}, "2026-02-15": {"spend": 17.52, "installs": 14, "trials": 4, "impressions": 2864}, "2026-02-16": {"spend": 8.21, "installs": 9, "trials": 3, "impressions": 1976}, "2026-02-17": {"spend": 14.2, "installs": 7, "trials": 4, "impressions": 2580}, "2026-02-18": {"spend": 5.7, "installs": 5, "trials": 1, "impressions": 740}, "2026-02-19": {"spend": 0.39, "installs": 0, "trials": 0, "impressions": 212}, "2026-02-20": {"spend": 2.41, "installs": 0, "trials": 0, "impressions": 394}}, "politics": {"2026-01-22": {"spend": 0.26, "installs": 0, "trials": 0, "impressions": 67}, "2026-01-23": {"spend": 0.06, "installs": 0, "trials": 0, "impressions": 8}, "2026-01-24": {"spend": 0.06, "installs": 0, "trials": 0, "impressions": 13}, "2026-01-25": {"spend": 0.01, "installs": 0, "trials": 0, "impressions": 3}, "2026-01-26": {"spend": 0.03, "installs": 0, "trials": 0, "impressions": 5}, "2026-01-27": {"spend": 0.12, "installs": 1, "trials": 0, "impressions": 33}, "2026-01-28": {"spend": 0.82, "installs": 0, "trials": 0, "impressions": 379}, "2026-01-29": {"spend": 0.27, "installs": 1, "trials": 0, "impressions": 121}, "2026-01-30": {"spend": 0.13, "installs": 0, "trials": 0, "impressions": 65}, "2026-01-31": {"spend": 0.37, "installs": 0, "trials": 0, "impressions": 66}, "2026-02-01": {"spend": 0.15, "installs": 0, "trials": 0, "impressions": 69}, "2026-02-02": {"spend": 0.04, "installs": 0, "trials": 0, "impressions": 15}, "2026-02-03": {"spend": 6.26, "installs": 1, "trials": 0, "impressions": 2056}, "2026-02-04": {"spend": 6.17, "installs": 1, "trials": 0, "impressions": 1376}, "2026-02-05": {"spend": 1.52, "installs": 0, "trials": 0, "impressions": 375}, "2026-02-06": {"spend": 1.53, "installs": 0, "trials": 0, "impressions": 273}, "2026-02-07": {"spend": 1.86, "installs": 1, "trials": 1, "impressions": 326}, "2026-02-08": {"spend": 1.64, "installs": 1, "trials": 0, "impressions": 248}, "2026-02-09": {"spend": 1.68, "installs": 1, "trials": 0, "impressions": 358}, "2026-02-10": {"spend": 1.33, "installs": 0, "trials": 0, "impressions": 276}, "2026-02-11": {"spend": 1.61, "installs": 1, "trials": 0, "impressions": 281}, "2026-02-12": {"spend": 1.86, "installs": 1, "trials": 1, "impressions": 339}, "2026-02-13": {"spend": 1.82, "installs": 3, "trials": 0, "impressions": 337}, "2026-02-14": {"spend": 3.06, "installs": 4, "trials": 0, "impressions": 694}, "2026-02-15": {"spend": 3.49, "installs": 1, "trials": 0, "impressions": 886}, "2026-02-16": {"spend": 3.13, "installs": 5, "trials": 1, "impressions": 812}, "2026-02-17": {"spend": 3.08, "installs": 2, "trials": 1, "impressions": 894}, "2026-02-18": {"spend": 3.33, "installs": 0, "trials": 0, "impressions": 854}, "2026-02-19": {"spend": 4.23, "installs": 1, "trials": 0, "impressions": 1014}, "2026-02-20": {"spend": 3.78, "installs": 0, "trials": 0, "impressions": 973}}, "science": {"2026-01-22": {"spend": 0.07, "installs": 0, "trials": 0, "impressions": 25}, "2026-01-23": {"spend": 0.01, "installs": 0, "trials": 0, "impressions": 1}, "2026-01-25": {"spend": 0.02, "installs": 0, "trials": 0, "impressions": 3}, "2026-01-26": {"spend": 0.01, "installs": 0, "trials": 0, "impressions": 2}, "2026-01-27": {"spend": 0.03, "installs": 1, "trials": 0, "impressions": 8}, "2026-01-28": {"spend": 0.11, "installs": 0, "trials": 0, "impressions": 43}, "2026-01-29": {"spend": 0.03, "installs": 0, "trials": 0, "impressions": 16}, "2026-01-30": {"spend": 0.05, "installs": 0, "trials": 0, "impressions": 14}, "2026-01-31": {"spend": 0.01, "installs": 0, "trials": 0, "impressions": 6}, "2026-02-01": {"spend": 0.02, "installs": 0, "trials": 0, "impressions": 10}, "2026-02-02": {"spend": 0.01, "installs": 0, "trials": 0, "impressions": 2}, "2026-02-03": {"spend": 1.94, "installs": 0, "trials": 0, "impressions": 665}, "2026-02-04": {"spend": 1.6, "installs": 0, "trials": 0, "impressions": 407}, "2026-02-05": {"spend": 1.63, "installs": 0, "trials": 0, "impressions": 353}, "2026-02-06": {"spend": 2.14, "installs": 2, "trials": 1, "impressions": 346}, "2026-02-07": {"spend": 2.03, "installs": 4, "trials": 0, "impressions": 353}, "2026-02-08": {"spend": 2.11, "installs": 1, "trials": 1, "impressions": 303}, "2026-02-09": {"spend": 2.01, "installs": 1, "trials": 0, "impressions": 399}, "2026-02-10": {"spend": 1.56, "installs": 2, "trials": 2, "impressions": 297}, "2026-02-11": {"spend": 2.3, "installs": 3, "trials": 0, "impressions": 408}, "2026-02-12": {"spend": 2.21, "installs": 2, "trials": 0, "impressions": 397}, "2026-02-13": {"spend": 1.95, "installs": 0, "trials": 0, "impressions": 367}, "2026-02-14": {"spend": 2.21, "installs": 1, "trials": 1, "impressions": 406}, "2026-02-15": {"spend": 1.89, "installs": 1, "trials": 0, "impressions": 484}, "2026-02-16": {"spend": 1.61, "installs": 2, "trials": 0, "impressions": 407}, "2026-02-17": {"spend": 1.18, "installs": 0, "trials": 0, "impressions": 329}, "2026-02-18": {"spend": 1.22, "installs": 1, "trials": 0, "impressions": 293}, "2026-02-19": {"spend": 2.14, "installs": 2, "trials": 0, "impressions": 478}, "2026-02-20": {"spend": 1.41, "installs": 0, "trials": 0, "impressions": 362}}, "shortcuts": {"2026-01-22": {"spend": 6.6, "installs": 6, "trials": 0, "impressions": 637}, "2026-01-23": {"spend": 9.15, "installs": 11, "trials": 0, "impressions": 844}, "2026-01-24": {"spend": 9.29, "installs": 16, "trials": 0, "impressions": 1467}, "2026-01-25": {"spend": 9.72, "installs": 16, "trials": 0, "impressions": 1818}, "2026-01-26": {"spend": 7.56, "installs": 11, "trials": 0, "impressions": 1581}, "2026-01-27": {"spend": 7.48, "installs": 11, "trials": 0, "impressions": 1720}, "2026-01-28": {"spend": 1.66, "installs": 0, "trials": 0, "impressions": 402}, "2026-01-29": {"spend": 0.99, "installs": 1, "trials": 0, "impressions": 253}, "2026-01-30": {"spend": 1.84, "installs": 4, "trials": 0, "impressions": 522}, "2026-01-31": {"spend": 5.63, "installs": 9, "trials": 0, "impressions": 937}, "2026-02-01": {"spend": 10.46, "installs": 14, "trials": 0, "impressions": 1544}, "2026-02-02": {"spend": 9.63, "installs": 14, "trials": 0, "impressions": 1747}, "2026-02-03": {"spend": 9.48, "installs": 14, "trials": 0, "impressions": 1460}, "2026-02-04": {"spend": 8.06, "installs": 9, "trials": 0, "impressions": 1438}, "2026-02-05": {"spend": 8.17, "installs": 10, "trials": 1, "impressions": 1375}, "2026-02-06": {"spend": 9.5, "installs": 6, "trials": 2, "impressions": 1279}, "2026-02-07": {"spend": 5.67, "installs": 3, "trials": 3, "impressions": 783}, "2026-02-08": {"spend": 2.19, "installs": 2, "trials": 0, "impressions": 234}, "2026-02-09": {"spend": 1.31, "installs": 1, "trials": 0, "impressions": 326}, "2026-02-10": {"spend": 2.62, "installs": 2, "trials": 1, "impressions": 411}, "2026-02-11": {"spend": 5.41, "installs": 2, "trials": 1, "impressions": 744}, "2026-02-12": {"spend": 3.8, "installs": 4, "trials": 1, "impressions": 602}, "2026-02-13": {"spend": 7.33, "installs": 4, "trials": 1, "impressions": 638}, "2026-02-14": {"spend": 7.64, "installs": 9, "trials": 3, "impressions": 964}, "2026-02-15": {"spend": 5.92, "installs": 6, "trials": 3, "impressions": 680}, "2026-02-16": {"spend": 4.81, "installs": 5, "trials": 1, "impressions": 536}, "2026-02-17": {"spend": 5.88, "installs": 3, "trials": 2, "impressions": 602}, "2026-02-18": {"spend": 2.51, "installs": 2, "trials": 1, "impressions": 250}, "2026-02-19": {"spend": 1.22, "installs": 3, "trials": 0, "impressions": 160}, "2026-02-20": {"spend": 1.67, "installs": 0, "trials": 0, "impressions": 189}}, "technews": {"2026-01-22": {"spend": 0.01, "installs": 0, "trials": 0, "impressions": 5}, "2026-01-24": {"spend": 0.0, "installs": 0, "trials": 0, "impressions": 1}, "2026-01-25": {"spend": 0.0, "installs": 0, "trials": 0, "impressions": 1}, "2026-01-27": {"spend": 0.02, "installs": 0, "trials": 0, "impressions": 3}, "2026-01-28": {"spend": 0.01, "installs": 0, "trials": 0, "impressions": 4}, "2026-01-30": {"spend": 0.0, "installs": 0, "trials": 0, "impressions": 1}, "2026-01-31": {"spend": 0.0, "installs": 0, "trials": 0, "impressions": 1}, "2026-02-01": {"spend": 0.01, "installs": 0, "trials": 0, "impressions": 2}, "2026-02-02": {"spend": 0.0, "installs": 0, "trials": 0, "impressions": 1}, "2026-02-03": {"spend": 0.86, "installs": 0, "trials": 0, "impressions": 286}, "2026-02-04": {"spend": 0.96, "installs": 1, "trials": 0, "impressions": 211}, "2026-02-05": {"spend": 0.73, "installs": 2, "trials": 0, "impressions": 151}, "2026-02-06": {"spend": 0.89, "installs": 0, "trials": 0, "impressions": 143}, "2026-02-07": {"spend": 1.11, "installs": 1, "trials": 1, "impressions": 178}, "2026-02-08": {"spend": 1.22, "installs": 0, "trials": 0, "impressions": 158}, "2026-02-09": {"spend": 1.09, "installs": 1, "trials": 1, "impressions": 208}, "2026-02-10": {"spend": 0.87, "installs": 0, "trials": 0, "impressions": 168}, "2026-02-11": {"spend": 0.95, "installs": 0, "trials": 0, "impressions": 175}, "2026-02-12": {"spend": 1.09, "installs": 1, "trials": 1, "impressions": 200}, "2026-02-13": {"spend": 1.21, "installs": 0, "trials": 0, "impressions": 208}, "2026-02-14": {"spend": 1.57, "installs": 1, "trials": 0, "impressions": 342}, "2026-02-15": {"spend": 2.46, "installs": 2, "trials": 1, "impressions": 566}, "2026-02-16": {"spend": 2.42, "installs": 3, "trials": 1, "impressions": 581}, "2026-02-17": {"spend": 1.88, "installs": 2, "trials": 0, "impressions": 461}, "2026-02-18": {"spend": 1.77, "installs": 1, "trials": 0, "impressions": 373}, "2026-02-19": {"spend": 2.78, "installs": 1, "trials": 0, "impressions": 603}, "2026-02-20": {"spend": 1.86, "installs": 1, "trials": 1, "impressions": 431}}, "television": {"2026-01-22": {"spend": 0.07, "installs": 0, "trials": 0, "impressions": 21}, "2026-01-23": {"spend": 0.02, "installs": 0, "trials": 0, "impressions": 1}, "2026-01-24": {"spend": 0.01, "installs": 0, "trials": 0, "impressions": 1}, "2026-01-25": {"spend": 0.01, "installs": 0, "trials": 0, "impressions": 2}, "2026-01-26": {"spend": 0.0, "installs": 0, "trials": 0, "impressions": 1}, "2026-01-27": {"spend": 0.06, "installs": 0, "trials": 0, "impressions": 12}, "2026-01-28": {"spend": 0.2, "installs": 0, "trials": 0, "impressions": 98}, "2026-01-29": {"spend": 0.09, "installs": 0, "trials": 0, "impressions": 39}, "2026-01-30": {"spend": 0.05, "installs": 0, "trials": 0, "impressions": 25}, "2026-01-31": {"spend": 0.06, "installs": 0, "trials": 0, "impressions": 23}, "2026-02-01": {"spend": 0.09, "installs": 0, "trials": 0, "impressions": 25}, "2026-02-02": {"spend": 0.01, "installs": 0, "trials": 0, "impressions": 5}, "2026-02-03": {"spend": 2.7, "installs": 0, "trials": 0, "impressions": 874}, "2026-02-04": {"spend": 2.36, "installs": 1, "trials": 0, "impressions": 552}, "2026-02-05": {"spend": 0.92, "installs": 1, "trials": 0, "impressions": 208}, "2026-02-06": {"spend": 1.41, "installs": 0, "trials": 0, "impressions": 202}, "2026-02-07": {"spend": 0.86, "installs": 0, "trials": 0, "impressions": 160}, "2026-02-08": {"spend": 0.93, "installs": 0, "trials": 0, "impressions": 134}, "2026-02-09": {"spend": 0.97, "installs": 0, "trials": 0, "impressions": 193}, "2026-02-10": {"spend": 0.69, "installs": 0, "trials": 0, "impressions": 136}, "2026-02-11": {"spend": 0.88, "installs": 1, "trials": 0, "impressions": 168}, "2026-02-12": {"spend": 1.01, "installs": 1, "trials": 0, "impressions": 197}, "2026-02-13": {"spend": 1.25, "installs": 1, "trials": 0, "impressions": 230}, "2026-02-14": {"spend": 1.38, "installs": 1, "trials": 0, "impressions": 321}, "2026-02-15": {"spend": 1.84, "installs": 0, "trials": 0, "impressions": 460}, "2026-02-16": {"spend": 1.68, "installs": 2, "trials": 2, "impressions": 429}, "2026-02-17": {"spend": 1.41, "installs": 1, "trials": 0, "impressions": 409}, "2026-02-18": {"spend": 1.49, "installs": 0, "trials": 0, "impressions": 375}, "2026-02-19": {"spend": 1.02, "installs": 0, "trials": 1, "impressions": 244}, "2026-02-20": {"spend": 0.77, "installs": 0, "trials": 0, "impressions": 213}}, "todayilearned": {"2026-01-22": {"spend": 0.19, "installs": 0, "trials": 0, "impressions": 64}, "2026-01-23": {"spend": 0.04, "installs": 0, "trials": 0, "impressions": 6}, "2026-01-24": {"spend": 0.07, "installs": 0, "trials": 0, "impressions": 13}, "2026-01-25": {"spend": 0.03, "installs": 0, "trials": 0, "impressions": 7}, "2026-01-26": {"spend": 0.06, "installs": 1, "trials": 0, "impressions": 11}, "2026-01-27": {"spend": 0.13, "installs": 1, "trials": 0, "impressions": 36}, "2026-01-28": {"spend": 0.56, "installs": 0, "trials": 0, "impressions": 285}, "2026-01-29": {"spend": 0.2, "installs": 0, "trials": 0, "impressions": 102}, "2026-01-30": {"spend": 0.1, "installs": 0, "trials": 0, "impressions": 59}, "2026-01-31": {"spend": 0.3, "installs": 1, "trials": 0, "impressions": 66}, "2026-02-01": {"spend": 0.13, "installs": 0, "trials": 0, "impressions": 66}, "2026-02-02": {"spend": 0.05, "installs": 0, "trials": 0, "impressions": 17}, "2026-02-03": {"spend": 6.75, "installs": 0, "trials": 0, "impressions": 2248}, "2026-02-04": {"spend": 5.96, "installs": 4, "trials": 0, "impressions": 1450}, "2026-02-05": {"spend": 4.76, "installs": 4, "trials": 1, "impressions": 1096}, "2026-02-06": {"spend": 5.73, "installs": 5, "trials": 2, "impressions": 1009}, "2026-02-07": {"spend": 5.65, "installs": 6, "trials": 1, "impressions": 988}, "2026-02-08": {"spend": 6.01, "installs": 3, "trials": 2, "impressions": 842}, "2026-02-09": {"spend": 6.35, "installs": 6, "trials": 2, "impressions": 1247}, "2026-02-10": {"spend": 4.39, "installs": 4, "trials": 1, "impressions": 857}, "2026-02-11": {"spend": 5.51, "installs": 4, "trials": 1, "impressions": 1028}, "2026-02-12": {"spend": 4.79, "installs": 6, "trials": 2, "impressions": 901}, "2026-02-13": {"spend": 4.83, "installs": 0, "trials": 0, "impressions": 908}, "2026-02-14": {"spend": 5.13, "installs": 4, "trials": 0, "impressions": 1193}, "2026-02-15": {"spend": 5.87, "installs": 0, "trials": 0, "impressions": 1569}, "2026-02-16": {"spend": 4.53, "installs": 4, "trials": 1, "impressions": 1219}, "2026-02-17": {"spend": 3.74, "installs": 2, "trials": 0, "impressions": 1147}, "2026-02-18": {"spend": 4.47, "installs": 2, "trials": 0, "impressions": 1169}, "2026-02-19": {"spend": 6.13, "installs": 4, "trials": 1, "impressions": 1426}, "2026-02-20": {"spend": 5.08, "installs": 3, "trials": 2, "impressions": 1335}}, "iosapps": {"2026-01-23": {"spend": 0.03, "installs": 0, "trials": 0, "impressions": 2}, "2026-01-24": {"spend": 0.01, "installs": 0, "trials": 0, "impressions": 1}, "2026-02-03": {"spend": 0.05, "installs": 0, "trials": 0, "impressions": 15}, "2026-02-04": {"spend": 0.04, "installs": 0, "trials": 0, "impressions": 9}, "2026-02-05": {"spend": 0.47, "installs": 0, "trials": 0, "impressions": 83}, "2026-02-06": {"spend": 1.39, "installs": 0, "trials": 0, "impressions": 154}, "2026-02-07": {"spend": 1.23, "installs": 4, "trials": 0, "impressions": 148}, "2026-02-08": {"spend": 1.01, "installs": 1, "trials": 1, "impressions": 125}, "2026-02-09": {"spend": 1.33, "installs": 1, "trials": 0, "impressions": 209}, "2026-02-10": {"spend": 1.33, "installs": 2, "trials": 0, "impressions": 173}, "2026-02-11": {"spend": 0.8, "installs": 1, "trials": 0, "impressions": 114}, "2026-02-12": {"spend": 0.66, "installs": 1, "trials": 0, "impressions": 116}, "2026-02-13": {"spend": 0.74, "installs": 1, "trials": 1, "impressions": 119}, "2026-02-14": {"spend": 0.52, "installs": 0, "trials": 0, "impressions": 76}, "2026-02-15": {"spend": 0.12, "installs": 1, "trials": 1, "impressions": 23}, "2026-02-16": {"spend": 0.13, "installs": 0, "trials": 0, "impressions": 29}, "2026-02-17": {"spend": 0.08, "installs": 0, "trials": 0, "impressions": 12}, "2026-02-18": {"spend": 0.12, "installs": 0, "trials": 0, "impressions": 15}, "2026-02-19": {"spend": 0.06, "installs": 0, "trials": 0, "impressions": 14}, "2026-02-20": {"spend": 0.1, "installs": 0, "trials": 0, "impressions": 16}}, "macapps": {"2026-01-23": {"spend": 0.03, "installs": 0, "trials": 0, "impressions": 2}, "2026-01-24": {"spend": 0.01, "installs": 1, "trials": 0, "impressions": 2}, "2026-01-25": {"spend": 0.02, "installs": 0, "trials": 0, "impressions": 4}, "2026-01-27": {"spend": 0.01, "installs": 0, "trials": 0, "impressions": 2}, "2026-01-28": {"spend": 0.02, "installs": 0, "trials": 0, "impressions": 3}, "2026-01-29": {"spend": 0.01, "installs": 0, "trials": 0, "impressions": 1}, "2026-01-30": {"spend": 0.0, "installs": 0, "trials": 0, "impressions": 1}, "2026-02-03": {"spend": 0.12, "installs": 0, "trials": 0, "impressions": 37}, "2026-02-04": {"spend": 0.07, "installs": 2, "trials": 0, "impressions": 15}, "2026-02-05": {"spend": 0.92, "installs": 1, "trials": 0, "impressions": 156}, "2026-02-06": {"spend": 2.67, "installs": 2, "trials": 0, "impressions": 289}, "2026-02-07": {"spend": 2.55, "installs": 6, "trials": 3, "impressions": 325}, "2026-02-08": {"spend": 1.98, "installs": 1, "trials": 0, "impressions": 234}, "2026-02-09": {"spend": 2.22, "installs": 3, "trials": 1, "impressions": 354}, "2026-02-10": {"spend": 2.41, "installs": 2, "trials": 0, "impressions": 355}, "2026-02-11": {"spend": 1.7, "installs": 1, "trials": 0, "impressions": 260}, "2026-02-12": {"spend": 1.79, "installs": 2, "trials": 1, "impressions": 284}, "2026-02-13": {"spend": 2.28, "installs": 0, "trials": 0, "impressions": 346}, "2026-02-14": {"spend": 1.32, "installs": 0, "trials": 0, "impressions": 208}, "2026-02-15": {"spend": 0.33, "installs": 0, "trials": 0, "impressions": 53}, "2026-02-16": {"spend": 0.25, "installs": 1, "trials": 0, "impressions": 43}, "2026-02-17": {"spend": 0.15, "installs": 1, "trials": 0, "impressions": 27}, "2026-02-18": {"spend": 0.28, "installs": 0, "trials": 0, "impressions": 39}, "2026-02-19": {"spend": 0.29, "installs": 0, "trials": 0, "impressions": 45}, "2026-02-20": {"spend": 0.34, "installs": 0, "trials": 0, "impressions": 40}}, "datahoarder": {"2026-01-24": {"spend": 0.03, "installs": 1, "trials": 0, "impressions": 4}, "2026-01-25": {"spend": 0.05, "installs": 0, "trials": 0, "impressions": 10}, "2026-01-26": {"spend": 0.02, "installs": 0, "trials": 0, "impressions": 5}, "2026-01-27": {"spend": 0.04, "installs": 0, "trials": 0, "impressions": 10}, "2026-01-28": {"spend": 0.03, "installs": 0, "trials": 0, "impressions": 13}, "2026-01-29": {"spend": 0.03, "installs": 0, "trials": 0, "impressions": 8}, "2026-01-30": {"spend": 0.02, "installs": 0, "trials": 0, "impressions": 3}, "2026-01-31": {"spend": 0.02, "installs": 0, "trials": 0, "impressions": 3}, "2026-02-01": {"spend": 0.03, "installs": 0, "trials": 0, "impressions": 6}, "2026-02-03": {"spend": 0.18, "installs": 0, "trials": 0, "impressions": 53}, "2026-02-04": {"spend": 0.2, "installs": 0, "trials": 0, "impressions": 50}, "2026-02-05": {"spend": 0.75, "installs": 1, "trials": 1, "impressions": 133}, "2026-02-06": {"spend": 1.44, "installs": 0, "trials": 0, "impressions": 170}, "2026-02-07": {"spend": 1.31, "installs": 1, "trials": 1, "impressions": 198}, "2026-02-08": {"spend": 1.17, "installs": 1, "trials": 1, "impressions": 164}, "2026-02-09": {"spend": 1.48, "installs": 1, "trials": 0, "impressions": 258}, "2026-02-10": {"spend": 1.39, "installs": 0, "trials": 0, "impressions": 252}, "2026-02-11": {"spend": 1.34, "installs": 2, "trials": 0, "impressions": 231}, "2026-02-12": {"spend": 0.82, "installs": 0, "trials": 0, "impressions": 133}, "2026-02-13": {"spend": 1.0, "installs": 0, "trials": 0, "impressions": 171}, "2026-02-14": {"spend": 0.57, "installs": 1, "trials": 0, "impressions": 103}, "2026-02-15": {"spend": 0.28, "installs": 0, "trials": 0, "impressions": 62}, "2026-02-16": {"spend": 0.25, "installs": 0, "trials": 0, "impressions": 53}, "2026-02-17": {"spend": 0.15, "installs": 1, "trials": 1, "impressions": 42}, "2026-02-18": {"spend": 0.22, "installs": 0, "trials": 0, "impressions": 49}, "2026-02-19": {"spend": 0.38, "installs": 0, "trials": 0, "impressions": 69}, "2026-02-20": {"spend": 0.3, "installs": 0, "trials": 0, "impressions": 57}}};
-
-    // ── Persistent state via window.storage ───────────────────────────────────
-    const [periods, setPeriods] = useState([]);           // [{id, label, date, data[], archived}]
-    const [changeLog, setChangeLog] = useState([]);       // [{id, date, added[], removed[], note}]
-    const [storageReady, setStorageReady] = useState(false);
-
-    // Load persisted data on mount
-    useEffect(() => {
-        async function load() {
-            try {
-                const pr = await window.storage.get('comm-periods');
-                const cl = await window.storage.get('comm-changelog');
-                let loadedPeriods = pr ? JSON.parse(pr.value) : [];
-                // Seed baseline if nothing saved yet
-                if (loadedPeriods.length === 0) {
-                    const baseline = {
-                        id: 'baseline',
-                        label: 'Baseline (Jan 22 – Feb 22)',
-                        date: '2026-02-20',
-                        data: BASELINE_DATA.map(d => ({ ...d, daily: BASELINE_DAILY[d.sub] || {} })),
-                        archived: false
-                    };
-                    loadedPeriods = [baseline];
-                    await window.storage.set('comm-periods', JSON.stringify(loadedPeriods));
-                }
-                setPeriods(loadedPeriods);
-                setChangeLog(cl ? JSON.parse(cl.value) : []);
-            } catch(e) {
-                // Storage not available or key missing, seed baseline
-                const baseline = { id: 'baseline', label: 'Baseline (Jan 22 – Feb 22)', date: '2026-02-20', data: BASELINE_DATA.map(d => ({ ...d, daily: BASELINE_DAILY[d.sub] || {} })), archived: false };
-                setPeriods([baseline]);
-            }
-            setStorageReady(true);
-        }
-        load();
-    }, []);
-
-    async function savePeriods(p) {
-        setPeriods(p);
-        try { await window.storage.set('comm-periods', JSON.stringify(p)); } catch(e) {}
-    }
-    async function saveChangeLog(cl) {
-        setChangeLog(cl);
-        try { await window.storage.set('comm-changelog', JSON.stringify(cl)); } catch(e) {}
-    }
-
-    // ── UI state ──────────────────────────────────────────────────────────────
-    const [activeTab, setActiveTab] = useState('analyzer'); // 'analyzer' | 'lineage'
-    const [activePeriodId, setActivePeriodId] = useState(null);
-    const [sortCol, setSortCol] = useState('cpa');
-    const [sortDir, setSortDir] = useState('asc');
-    const [cpaThreshGreen, setCpaThreshGreen] = useState(8);
-    const [cpaThreshYellow, setCpaThreshYellow] = useState(14);
-    const [selected, setSelected] = useState(new Set());
-    const [subView, setSubView] = useState('table'); // 'table' | 'chart'
-    const [uploading, setUploading] = useState(false);
-    const [uploadLabel, setUploadLabel] = useState('');
-    const [uploadDate, setUploadDate] = useState(new Date().toISOString().slice(0,10));
-    const [showUploadPanel, setShowUploadPanel] = useState(false);
-    // Change log entry form
-    const [showLogForm, setShowLogForm] = useState(false);
-    const [logDate, setLogDate] = useState(new Date().toISOString().slice(0,10));
-    const [logAdded, setLogAdded] = useState('');
-    const [logRemoved, setLogRemoved] = useState('');
-    // Charts
-    const barChartRef = useRef(null);
-    const barChartInst = useRef(null);
-    const lineChartRef = useRef(null);
-    const lineChartInst = useRef(null);
-
-    // Derive active period
-    const activePeriod = periods.find(p => p.id === activePeriodId) || periods.find(p => !p.archived) || periods[0];
-    useEffect(() => {
-        if (storageReady && periods.length > 0 && !activePeriodId) {
-            setActivePeriodId(periods[periods.length - 1].id);
-        }
-    }, [storageReady, periods]);
-
-    // ── CSV Parsing ───────────────────────────────────────────────────────────
-    function parseRedditCSV(text) {
-        const lines = text.split('\n');
-        const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g,''));
-        const colIdx = h => headers.indexOf(h);
-        const subIdx = colIdx('Subreddit');
-        const dateIdx = colIdx('Date');
-        const spendIdx = colIdx('Amount Spent (USD)');
-        const installIdx = colIdx('(MMP) Total App Installs');
-        const trialIdx = colIdx('(MMP) App Purchases');
-        const impIdx = colIdx('Impressions');
-
-        const agg = {};
-        const daily = {}; // sub -> date -> {spend, installs, trials, impressions}
-
-        for (let i = 1; i < lines.length; i++) {
-            if (!lines[i].trim()) continue;
-            const cols = lines[i].split(',');
-            const sub = (cols[subIdx] || '').trim().replace(/^"|"$/g,'');
-            const date = (cols[dateIdx] || '').trim().replace(/^"|"$/g,'');
-            if (!sub) continue;
-            const spend = parseFloat(cols[spendIdx]) || 0;
-            if (spend === 0) continue;
-            if (!agg[sub]) agg[sub] = { spend: 0, installs: 0, trials: 0, impressions: 0 };
-            agg[sub].spend += spend;
-            agg[sub].installs += parseInt(cols[installIdx]) || 0;
-            agg[sub].trials += parseInt(cols[trialIdx]) || 0;
-            agg[sub].impressions += parseInt(cols[impIdx]) || 0;
-            // Daily
-            if (date) {
-                if (!daily[sub]) daily[sub] = {};
-                if (!daily[sub][date]) daily[sub][date] = { spend: 0, installs: 0, trials: 0, impressions: 0 };
-                daily[sub][date].spend = Math.round((daily[sub][date].spend + spend) * 100) / 100;
-                daily[sub][date].installs += parseInt(cols[installIdx]) || 0;
-                daily[sub][date].trials += parseInt(cols[trialIdx]) || 0;
-                daily[sub][date].impressions += parseInt(cols[impIdx]) || 0;
-            }
-        }
-        return Object.entries(agg)
-            .filter(([, d]) => d.trials >= 3)
-            .map(([sub, d]) => ({
-                sub, spend: Math.round(d.spend * 100) / 100,
-                installs: d.installs, trials: d.trials, impressions: d.impressions,
-                cpa: Math.round(d.spend / d.trials * 100) / 100,
-                cpi: d.installs ? Math.round(d.spend / d.installs * 100) / 100 : 0,
-                daily: daily[sub] || {}
-            }))
-            .sort((a, b) => a.cpa - b.cpa);
-    }
-
-    function handleFileUpload(e) {
-        const file = e.target.files[0];
-        if (!file) return;
-        if (!uploadLabel.trim()) { alert('Give this period a name first.'); return; }
-        setUploading(true);
-        const reader = new FileReader();
-        reader.onload = async (ev) => {
-            try {
-                const parsed = parseRedditCSV(ev.target.result);
-                const newPeriod = {
-                    id: 'p' + Date.now(),
-                    label: uploadLabel.trim(),
-                    date: uploadDate,
-                    data: parsed,
-                    archived: false
-                };
-                const updated = [...periods, newPeriod];
-                await savePeriods(updated);
-                setActivePeriodId(newPeriod.id);
-                setShowUploadPanel(false);
-                setUploadLabel('');
-                setActiveTab('analyzer');
-            } catch(err) { alert('Parse error: ' + err.message); }
-            setUploading(false);
-        };
-        reader.readAsText(file);
-        e.target.value = '';
-    }
-
-    async function archivePeriod(id) {
-        const updated = periods.map(p => p.id === id ? { ...p, archived: !p.archived } : p);
-        await savePeriods(updated);
-    }
-    async function deletePeriod(id) {
-        if (!confirm('Delete this period permanently?')) return;
-        const updated = periods.filter(p => p.id !== id);
-        await savePeriods(updated);
-        if (activePeriodId === id) setActivePeriodId(updated[updated.length-1]?.id || null);
-    }
-
-    async function addChangeLogEntry() {
-        if (!logDate) return;
-        const added = logAdded.split(',').map(s => s.trim().replace(/^r\//,'')).filter(Boolean);
-        const removed = logRemoved.split(',').map(s => s.trim().replace(/^r\//,'')).filter(Boolean);
-        if (!added.length && !removed.length) { alert('Add at least one community to the entry.'); return; }
-        const entry = { id: 'cl' + Date.now(), date: logDate, added, removed };
-        const updated = [entry, ...changeLog].sort((a,b) => a.date < b.date ? -1 : 1);
-        await saveChangeLog(updated);
-        setShowLogForm(false);
-        setLogAdded(''); setLogRemoved('');
-    }
-    async function deleteChangeLogEntry(id) {
-        await saveChangeLog(changeLog.filter(e => e.id !== id));
-    }
-
-    // ── Tier logic ────────────────────────────────────────────────────────────
-    function getTier(cpa) {
-        if (cpa <= cpaThreshGreen) return 'green';
-        if (cpa <= cpaThreshYellow) return 'yellow';
-        return 'red';
-    }
-    const TIER = {
-        green:  { label: 'TARGET', text: 'text-emerald-700', badge: 'bg-emerald-100 text-emerald-800 border border-emerald-300' },
-        yellow: { label: 'MONITOR', text: 'text-amber-700', badge: 'bg-amber-100 text-amber-800 border border-amber-300' },
-        red:    { label: 'EXCLUDE', text: 'text-red-700', badge: 'bg-red-100 text-red-800 border border-red-200' }
-    };
-
-    const data = (activePeriod?.data || []).map(d => ({ ...d, tier: getTier(d.cpa) }));
-    const sorted = [...data].sort((a, b) => {
-        let av = a[sortCol], bv = b[sortCol];
-        if (typeof av === 'string') return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
-        return sortDir === 'asc' ? av - bv : bv - av;
-    });
-    function toggleSort(col) {
-        if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
-        else { setSortCol(col); setSortDir('asc'); }
-    }
-    function toggleSelect(sub) {
-        setSelected(prev => { const n = new Set(prev); n.has(sub) ? n.delete(sub) : n.add(sub); return n; });
-    }
-    function selectTier(tier) {
-        setSelected(prev => { const n = new Set(prev); data.filter(d => d.tier === tier).forEach(d => n.add(d.sub)); return n; });
-    }
-
-    const greenList = data.filter(d => d.tier === 'green');
-    const yellowList = data.filter(d => d.tier === 'yellow');
-    const redList = data.filter(d => d.tier === 'red');
-    const totalTrials = data.reduce((s,d) => s+d.trials, 0);
-    const totalSpend = data.reduce((s,d) => s+d.spend, 0);
-    const avgCPA = totalTrials ? totalSpend / totalTrials : 0;
-
-    const SortIcon = ({ col }) => {
-        if (sortCol !== col) return React.createElement('span', { className: 'ml-1 text-gray-300' }, '↕');
-        return React.createElement('span', { className: 'ml-1' }, sortDir === 'asc' ? '↑' : '↓');
-    };
-
-    // ── Bar chart (per-subreddit) ──────────────────────────────────────────────
-    useEffect(() => {
-        if (subView !== 'chart' || activeTab !== 'analyzer' || !barChartRef.current) return;
-        if (barChartInst.current) { barChartInst.current.destroy(); barChartInst.current = null; }
-        const chartData = [...data].sort((a,b) => a.cpa - b.cpa);
-        barChartInst.current = new Chart(barChartRef.current.getContext('2d'), {
-            type: 'bar',
-            data: {
-                labels: chartData.map(d => 'r/' + d.sub),
-                datasets: [
-                    { label: 'CPA ($)', data: chartData.map(d => d.cpa), backgroundColor: chartData.map(d => d.tier === 'green' ? '#10b981' : d.tier === 'yellow' ? '#f59e0b' : '#ef4444'), borderRadius: 4, yAxisID: 'y' },
-                    { label: 'Trials', data: chartData.map(d => d.trials), type: 'line', borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,0.1)', pointBackgroundColor: '#6366f1', tension: 0.3, yAxisID: 'y2', pointRadius: 4 }
-                ]
-            },
-            options: {
-                responsive: true, maintainAspectRatio: false,
-                plugins: { legend: { position: 'top' }, tooltip: { callbacks: { label: (c) => c.datasetIndex === 0 ? ` CPA: $${c.parsed.y.toFixed(2)}` : ` Trials: ${c.parsed.y}` } } },
-                scales: {
-                    x: { ticks: { maxRotation: 45, font: { size: 10 } } },
-                    y: { title: { display: true, text: 'CPA ($)' }, beginAtZero: true },
-                    y2: { position: 'right', title: { display: true, text: 'Trials' }, beginAtZero: true, grid: { drawOnChartArea: false } }
-                }
-            }
-        });
-        return () => { if (barChartInst.current) barChartInst.current.destroy(); };
-    }, [subView, activeTab, activePeriodId, cpaThreshGreen, cpaThreshYellow]);
-
-    // ── Lineage chart ─────────────────────────────────────────────────────────
-    useEffect(() => {
-        if (activeTab !== 'lineage' || !lineChartRef.current) return;
-        if (lineChartInst.current) { lineChartInst.current.destroy(); lineChartInst.current = null; }
-
-        const activePeriods = periods.filter(p => !p.archived).sort((a,b) => a.date < b.date ? -1 : 1);
-        if (activePeriods.length === 0) return;
-
-        const labels = activePeriods.map(p => p.label);
-        const cpaVals = activePeriods.map(p => {
-            const sp = p.data.reduce((s,d) => s+d.spend, 0);
-            const tr = p.data.reduce((s,d) => s+d.trials, 0);
-            return tr ? Math.round(sp/tr*100)/100 : 0;
-        });
-        const trialsVals = activePeriods.map(p => p.data.reduce((s,d) => s+d.trials, 0));
-        const effVals = activePeriods.map(p => {
-            const sp = p.data.reduce((s,d) => s+d.spend, 0);
-            const tr = p.data.reduce((s,d) => s+d.trials, 0);
-            return sp ? Math.round(tr/sp*1000)/1000 : 0;
-        });
-
-        // Build annotation plugin config for change log markers
-        const annotations = {};
-        changeLog.forEach((entry, i) => {
-            // Find which period index this change falls closest to
-            const idx = activePeriods.findIndex(p => p.date >= entry.date);
-            if (idx < 0) return;
-            annotations['change' + i] = {
-                type: 'line',
-                xMin: idx, xMax: idx,
-                borderColor: 'rgba(99,102,241,0.8)',
-                borderWidth: 2,
-                borderDash: [4, 4],
-                label: {
-                    display: true,
-                    content: '✦ ' + entry.date,
-                    position: 'start',
-                    backgroundColor: 'rgba(99,102,241,0.9)',
-                    color: '#fff',
-                    font: { size: 10, weight: 'bold' },
-                    padding: { x: 6, y: 3 },
-                    borderRadius: 4,
-                    yAdjust: -8
-                }
-            };
-        });
-
-        lineChartInst.current = new Chart(lineChartRef.current.getContext('2d'), {
-            type: 'line',
-            data: {
-                labels,
-                datasets: [
-                    { label: 'Avg CPA ($)', data: cpaVals, borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.08)', pointBackgroundColor: '#ef4444', tension: 0.3, yAxisID: 'y', pointRadius: 6, pointHoverRadius: 8 },
-                    { label: 'Total Trials', data: trialsVals, borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.08)', pointBackgroundColor: '#10b981', tension: 0.3, yAxisID: 'y2', pointRadius: 6, pointHoverRadius: 8 },
-                    { label: 'Efficiency (trials/$)', data: effVals, borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.08)', pointBackgroundColor: '#f59e0b', tension: 0.3, yAxisID: 'y3', pointRadius: 6, pointHoverRadius: 8, borderDash: [6,3] }
-                ]
-            },
-            options: {
-                responsive: true, maintainAspectRatio: false,
-                plugins: {
-                    legend: { position: 'top' },
-                    annotation: { annotations },
-                    tooltip: { mode: 'index', intersect: false }
-                },
-                scales: {
-                    x: { grid: { color: 'rgba(0,0,0,0.05)' } },
-                    y: { title: { display: true, text: 'Avg CPA ($)', color: '#ef4444' }, beginAtZero: true, position: 'left' },
-                    y2: { title: { display: true, text: 'Total Trials', color: '#10b981' }, beginAtZero: true, position: 'right', grid: { drawOnChartArea: false } },
-                    y3: { title: { display: true, text: 'Trials/$', color: '#f59e0b' }, beginAtZero: true, position: 'right', grid: { drawOnChartArea: false }, display: activePeriods.length > 1 }
-                }
-            }
-        });
-        return () => { if (lineChartInst.current) lineChartInst.current.destroy(); };
-    }, [activeTab, periods, changeLog]);
-
-    if (!storageReady) return React.createElement('div', { className: 'p-12 text-center text-gray-400' }, 'Loading…');
-
-    // ════════════════════════════════════════════════════════════════════════════
-    return React.createElement('div', { className: 'p-6 max-w-7xl mx-auto space-y-5' },
-
-        // ── Top bar ───────────────────────────────────────────────────────────
-        React.createElement('div', { className: 'flex items-center justify-between' },
-            React.createElement('div', null,
-                React.createElement('h2', { className: 'text-2xl font-bold text-gray-900' }, 'Community Targeting'),
-                React.createElement('p', { className: 'text-sm text-gray-500 mt-0.5' }, periods.filter(p=>!p.archived).length + ' active period' + (periods.filter(p=>!p.archived).length !== 1 ? 's' : '') + ' · ' + periods.reduce((s,p) => s+p.data.length, 0) + ' total subreddit records')
-            ),
-            React.createElement('div', { className: 'flex items-center gap-2' },
-                React.createElement('button', { onClick: () => setShowUploadPanel(v => !v), className: 'flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-full bg-indigo-600 text-white hover:bg-indigo-700 transition-colors' },
-                    React.createElement('span', null, '↑'), ' Upload New Data'
-                )
-            )
-        ),
-
-        // ── Upload panel ──────────────────────────────────────────────────────
-        showUploadPanel && React.createElement('div', { className: 'bg-indigo-50 border border-indigo-200 rounded-xl p-5' },
-            React.createElement('h3', { className: 'text-sm font-semibold text-indigo-900 mb-3' }, 'Upload Reddit Communities CSV'),
-            React.createElement('div', { className: 'flex flex-wrap gap-3 items-end' },
-                React.createElement('div', null,
-                    React.createElement('label', { className: 'text-xs text-indigo-700 font-medium block mb-1' }, 'Period label'),
-                    React.createElement('input', { type: 'text', placeholder: 'e.g. "Post-optimization Feb"', value: uploadLabel, onChange: e => setUploadLabel(e.target.value),
-                        className: 'border border-indigo-300 rounded-lg px-3 py-2 text-sm w-64 focus:outline-none focus:border-indigo-500' })
-                ),
-                React.createElement('div', null,
-                    React.createElement('label', { className: 'text-xs text-indigo-700 font-medium block mb-1' }, 'Period end date'),
-                    React.createElement('input', { type: 'date', value: uploadDate, onChange: e => setUploadDate(e.target.value),
-                        className: 'border border-indigo-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-500' })
-                ),
-                React.createElement('label', { className: 'cursor-pointer flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors' },
-                    uploading ? 'Parsing…' : '📂 Choose CSV',
-                    React.createElement('input', { type: 'file', accept: '.csv', className: 'hidden', onChange: handleFileUpload, disabled: uploading })
-                ),
-                React.createElement('button', { onClick: () => setShowUploadPanel(false), className: 'px-3 py-2 text-sm text-indigo-600 hover:text-indigo-900' }, 'Cancel')
-            ),
-            React.createElement('p', { className: 'text-xs text-indigo-600 mt-2' }, 'Use the "30_Day_Performance_Report_w__Communities" export format. Only subreddits with ≥3 trials will appear.')
-        ),
-
-        // ── Period selector row ───────────────────────────────────────────────
-        periods.length > 1 && React.createElement('div', { className: 'flex flex-wrap items-center gap-2' },
-            React.createElement('span', { className: 'text-xs font-medium text-gray-500 mr-1' }, 'Viewing:'),
-            periods.map(p => React.createElement('button', {
-                key: p.id,
-                onClick: () => { setActivePeriodId(p.id); setActiveTab('analyzer'); },
-                className: 'text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ' +
-                    (activePeriodId === p.id ? 'bg-gray-900 text-white border-gray-900' : p.archived ? 'bg-gray-50 text-gray-400 border-gray-200 italic' : 'bg-white text-gray-600 border-gray-300 hover:border-gray-500')
-            }, p.label + (p.archived ? ' (archived)' : '')))
-        ),
-
-        // ── Tab nav ───────────────────────────────────────────────────────────
-        React.createElement('div', { className: 'flex border-b border-gray-200' },
-            [
-                { id: 'analyzer', label: '📊 Analyzer' },
-                { id: 'insights', label: '🔬 Insights' },
-                { id: 'lineage', label: '📈 Lineage' },
-                { id: 'periods', label: '🗂 Periods & Changes' }
-            ].map(t => React.createElement('button', {
-                key: t.id,
-                onClick: () => setActiveTab(t.id),
-                className: 'py-3 px-5 text-sm font-medium border-b-2 -mb-px transition-colors ' +
-                    (activeTab === t.id ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-gray-500 hover:text-gray-700')
-            }, t.label))
-        ),
-
-        // ════════ ANALYZER TAB ════════════════════════════════════════════════
-        activeTab === 'analyzer' && React.createElement('div', { className: 'space-y-5' },
-
-            // Summary stats
-            React.createElement('div', { className: 'grid grid-cols-4 gap-4' },
-                [
-                    { label: 'Overall avg CPA', value: '$' + avgCPA.toFixed(2), sub: totalTrials + ' trials · $' + totalSpend.toFixed(0) + ' spent', color: 'text-gray-900' },
-                    { label: '🟢 Target subs', value: greenList.length, sub: 'avg $' + (greenList.length ? (greenList.reduce((s,d)=>s+d.spend,0)/greenList.reduce((s,d)=>s+d.trials,0)).toFixed(2) : '—') + ' CPA', color: 'text-emerald-700' },
-                    { label: '🟡 Monitor subs', value: yellowList.length, sub: 'CPA $' + cpaThreshGreen + '–$' + cpaThreshYellow, color: 'text-amber-700' },
-                    { label: '🔴 Exclude subs', value: redList.length, sub: 'CPA > $' + cpaThreshYellow, color: 'text-red-700' },
-                ].map(s => React.createElement('div', { key: s.label, className: 'bg-white rounded-xl border border-gray-200 p-4' },
-                    React.createElement('div', { className: 'text-xs text-gray-500 font-medium mb-1' }, s.label),
-                    React.createElement('div', { className: 'text-2xl font-bold ' + s.color }, s.value),
-                    React.createElement('div', { className: 'text-xs text-gray-400 mt-0.5' }, s.sub)
-                ))
-            ),
-
-            // Controls bar
-            React.createElement('div', { className: 'bg-white rounded-xl border border-gray-200 p-4 flex flex-wrap items-center gap-6' },
-                React.createElement('span', { className: 'text-sm font-medium text-gray-700' }, 'CPA thresholds:'),
-                React.createElement('div', { className: 'flex items-center gap-2' },
-                    React.createElement('span', { className: 'text-xs font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200' }, '🟢 TARGET ≤'),
-                    React.createElement('div', { className: 'flex items-center border border-gray-300 rounded-lg overflow-hidden' },
-                        React.createElement('span', { className: 'px-2 py-1 bg-gray-50 text-gray-500 text-xs border-r border-gray-300' }, '$'),
-                        React.createElement('input', { type: 'number', value: cpaThreshGreen, onChange: e => setCpaThreshGreen(+e.target.value), className: 'w-14 px-2 py-1 text-sm text-center focus:outline-none focus:bg-blue-50', min: 1 })
-                    )
-                ),
-                React.createElement('div', { className: 'flex items-center gap-2' },
-                    React.createElement('span', { className: 'text-xs font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200' }, '🟡 MONITOR ≤'),
-                    React.createElement('div', { className: 'flex items-center border border-gray-300 rounded-lg overflow-hidden' },
-                        React.createElement('span', { className: 'px-2 py-1 bg-gray-50 text-gray-500 text-xs border-r border-gray-300' }, '$'),
-                        React.createElement('input', { type: 'number', value: cpaThreshYellow, onChange: e => setCpaThreshYellow(+e.target.value), className: 'w-14 px-2 py-1 text-sm text-center focus:outline-none focus:bg-blue-50', min: 1 })
-                    )
-                ),
-                React.createElement('span', { className: 'text-xs font-medium text-red-700 bg-red-50 px-2 py-0.5 rounded-full border border-red-200' }, '🔴 EXCLUDE > $' + cpaThreshYellow),
-                React.createElement('div', { className: 'ml-auto flex gap-2' },
-                    React.createElement('button', { onClick: () => setSubView('table'), className: 'px-3 py-1.5 text-xs font-medium rounded-full transition-colors ' + (subView==='table' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200') }, 'Table'),
-                    React.createElement('button', { onClick: () => setSubView('chart'), className: 'px-3 py-1.5 text-xs font-medium rounded-full transition-colors ' + (subView==='chart' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200') }, 'Chart')
-                )
-            ),
-
-            // Table view
-            subView === 'table' && React.createElement('div', { className: 'bg-white rounded-xl border border-gray-200 overflow-hidden' },
-                React.createElement('div', { className: 'px-4 py-3 border-b border-gray-100 flex items-center gap-2' },
-                    React.createElement('button', { onClick: () => selectTier('green'), className: 'text-xs px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 font-medium' }, '+ Select all TARGET'),
-                    React.createElement('button', { onClick: () => selectTier('yellow'), className: 'text-xs px-3 py-1.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 font-medium' }, '+ Select all MONITOR'),
-                    selected.size > 0 && React.createElement('button', { onClick: () => setSelected(new Set()), className: 'text-xs px-3 py-1.5 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 font-medium' }, 'Clear (' + selected.size + ')')
-                ),
-                React.createElement('table', { className: 'w-full text-sm' },
-                    React.createElement('thead', null,
-                        React.createElement('tr', { className: 'bg-gray-50 text-xs text-gray-500 uppercase tracking-wide' },
-                            React.createElement('th', { className: 'pl-4 pr-2 py-3 text-left w-6' }),
-                            React.createElement('th', { className: 'px-3 py-3 text-left cursor-pointer hover:text-gray-800', onClick: () => toggleSort('sub') }, 'Subreddit', React.createElement(SortIcon, { col: 'sub' })),
-                            React.createElement('th', { className: 'px-3 py-3 text-center' }, 'Tier'),
-                            React.createElement('th', { className: 'px-3 py-3 text-right cursor-pointer hover:text-gray-800', onClick: () => toggleSort('cpa') }, 'CPA', React.createElement(SortIcon, { col: 'cpa' })),
-                            React.createElement('th', { className: 'px-3 py-3 text-right cursor-pointer hover:text-gray-800', onClick: () => toggleSort('cpi') }, 'CPI', React.createElement(SortIcon, { col: 'cpi' })),
-                            React.createElement('th', { className: 'px-3 py-3 text-right cursor-pointer hover:text-gray-800', onClick: () => toggleSort('trials') }, 'Trials', React.createElement(SortIcon, { col: 'trials' })),
-                            React.createElement('th', { className: 'px-3 py-3 text-right cursor-pointer hover:text-gray-800', onClick: () => toggleSort('installs') }, 'Installs', React.createElement(SortIcon, { col: 'installs' })),
-                            React.createElement('th', { className: 'px-3 py-3 text-right cursor-pointer hover:text-gray-800', onClick: () => toggleSort('spend') }, 'Spend', React.createElement(SortIcon, { col: 'spend' })),
-                            React.createElement('th', { className: 'px-3 py-3 text-right cursor-pointer hover:text-gray-800', onClick: () => toggleSort('impressions') }, 'Impr.', React.createElement(SortIcon, { col: 'impressions' }))
-                        )
-                    ),
-                    React.createElement('tbody', null,
-                        sorted.map(d => {
-                            const tier = TIER[d.tier];
-                            const isSel = selected.has(d.sub);
-                            return React.createElement('tr', { key: d.sub, className: 'border-t border-gray-100 hover:bg-gray-50 cursor-pointer ' + (isSel ? 'bg-indigo-50' : ''), onClick: () => toggleSelect(d.sub) },
-                                React.createElement('td', { className: 'pl-4 pr-2 py-2.5' }, React.createElement('input', { type: 'checkbox', readOnly: true, checked: isSel, className: 'w-3.5 h-3.5 accent-indigo-600' })),
-                                React.createElement('td', { className: 'px-3 py-2.5 font-medium text-gray-800' },
-                                    React.createElement('a', { href: 'https://reddit.com/r/' + d.sub, target: '_blank', rel: 'noreferrer', className: 'hover:text-indigo-600 hover:underline', onClick: e => e.stopPropagation() }, 'r/' + d.sub)
-                                ),
-                                React.createElement('td', { className: 'px-3 py-2.5 text-center' }, React.createElement('span', { className: 'text-xs font-bold px-2 py-0.5 rounded-full ' + tier.badge }, tier.label)),
-                                React.createElement('td', { className: 'px-3 py-2.5 text-right font-mono font-semibold ' + tier.text }, '$' + d.cpa.toFixed(2)),
-                                React.createElement('td', { className: 'px-3 py-2.5 text-right font-mono text-gray-600' }, '$' + d.cpi.toFixed(2)),
-                                React.createElement('td', { className: 'px-3 py-2.5 text-right text-gray-800 font-medium' }, d.trials),
-                                React.createElement('td', { className: 'px-3 py-2.5 text-right text-gray-600' }, d.installs.toLocaleString()),
-                                React.createElement('td', { className: 'px-3 py-2.5 text-right text-gray-600' }, '$' + d.spend.toFixed(0)),
-                                React.createElement('td', { className: 'px-3 py-2.5 text-right text-gray-500 text-xs' }, d.impressions.toLocaleString())
-                            );
-                        })
-                    )
-                )
-            ),
-
-            // Bar chart view
-            subView === 'chart' && React.createElement('div', { className: 'bg-white rounded-xl border border-gray-200 p-6' },
-                React.createElement('div', { className: 'flex items-center gap-4 mb-4 text-xs text-gray-500' },
-                    React.createElement('div', { className: 'flex items-center gap-1.5' }, React.createElement('div', { className: 'w-3 h-3 rounded-sm bg-emerald-500' }), 'TARGET'),
-                    React.createElement('div', { className: 'flex items-center gap-1.5' }, React.createElement('div', { className: 'w-3 h-3 rounded-sm bg-amber-500' }), 'MONITOR'),
-                    React.createElement('div', { className: 'flex items-center gap-1.5' }, React.createElement('div', { className: 'w-3 h-3 rounded-sm bg-red-500' }), 'EXCLUDE'),
-                    React.createElement('div', { className: 'flex items-center gap-1.5 ml-4' }, React.createElement('div', { className: 'w-8 h-0.5 bg-indigo-500 rounded' }), 'Trials')
-                ),
-                React.createElement('div', { style: { height: 420 } }, React.createElement('canvas', { ref: barChartRef }))
-            ),
-
-            // Selected targeting output
-            selected.size > 0 && React.createElement('div', { className: 'bg-gray-900 rounded-xl p-5' },
-                React.createElement('div', { className: 'flex items-center justify-between mb-3' },
-                    React.createElement('h3', { className: 'text-sm font-semibold text-white' }, '📋 Targeting List (' + selected.size + ')'),
-                    React.createElement('button', {
-                        onClick: () => { try { navigator.clipboard.writeText([...selected].map(s=>'r/'+s).join('\n')); } catch(e){} },
-                        className: 'text-xs px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-full'
-                    }, 'Copy to clipboard')
-                ),
-                React.createElement('div', { className: 'flex flex-wrap gap-2' },
-                    [...selected].map(s => {
-                        const d = data.find(x => x.sub === s);
-                        if (!d) return null;
-                        return React.createElement('span', { key: s, className: 'text-xs px-2.5 py-1 rounded-full font-medium ' + TIER[d.tier].badge }, 'r/' + s + ' · $' + d.cpa.toFixed(2));
-                    })
-                ),
-                React.createElement('div', { className: 'mt-3 pt-3 border-t border-white/10 grid grid-cols-3 gap-4 text-xs' },
-                    (() => {
-                        const selData = [...selected].map(s => data.find(d=>d.sub===s)).filter(Boolean);
-                        const sp = selData.reduce((s,d)=>s+d.spend,0);
-                        const tr = selData.reduce((s,d)=>s+d.trials,0);
-                        return [
-                            { label: 'Combined trials', value: tr },
-                            { label: 'Combined spend', value: '$' + sp.toFixed(0) },
-                            { label: 'Weighted avg CPA', value: '$' + (tr ? sp/tr : 0).toFixed(2) }
-                        ].map(s => React.createElement('div', { key: s.label },
-                            React.createElement('div', { className: 'text-white/50' }, s.label),
-                            React.createElement('div', { className: 'text-white font-semibold text-base mt-0.5' }, s.value)
-                        ));
-                    })()
-                )
-            )
-        ),
-
-        // ════════ INSIGHTS TAB ═══════════════════════════════════════════════
-        activeTab === 'insights' && React.createElement(CommunitiesInsights, { data, periods, activePeriod, cpaThreshGreen, cpaThreshYellow, TIER }),
-
-        // ════════ LINEAGE TAB ═════════════════════════════════════════════════
-        activeTab === 'lineage' && React.createElement('div', { className: 'space-y-5' },
-            periods.filter(p=>!p.archived).length < 2
-                ? React.createElement('div', { className: 'bg-gray-50 rounded-xl border-2 border-dashed border-gray-200 p-12 text-center' },
-                    React.createElement('div', { className: 'text-4xl mb-3' }, '📈'),
-                    React.createElement('h3', { className: 'font-semibold text-gray-700 mb-1' }, 'Upload a second period to see lineage'),
-                    React.createElement('p', { className: 'text-sm text-gray-400 mb-4' }, 'After making targeting changes, upload a fresh CSV export and this chart will show how performance shifted.'),
-                    React.createElement('button', { onClick: () => { setShowUploadPanel(true); setActiveTab('analyzer'); }, className: 'px-5 py-2.5 bg-indigo-600 text-white text-sm font-medium rounded-full hover:bg-indigo-700' }, 'Upload New Period')
-                )
-                : React.createElement('div', { className: 'bg-white rounded-xl border border-gray-200 p-6' },
-                    React.createElement('div', { className: 'flex items-center justify-between mb-4' },
-                        React.createElement('h3', { className: 'font-semibold text-gray-800' }, 'Performance Across Periods'),
-                        React.createElement('span', { className: 'text-xs text-gray-400' }, 'Dashed vertical lines = targeting changes you logged')
-                    ),
-                    React.createElement('div', { style: { height: 380 } }, React.createElement('canvas', { ref: lineChartRef }))
-                ),
-
-            // Change log
-            React.createElement('div', { className: 'bg-white rounded-xl border border-gray-200 overflow-hidden' },
-                React.createElement('div', { className: 'px-5 py-3 border-b border-gray-100 flex items-center justify-between' },
-                    React.createElement('h3', { className: 'font-semibold text-gray-800 text-sm' }, '✦ Targeting Change Log'),
-                    React.createElement('button', { onClick: () => setShowLogForm(v=>!v), className: 'text-xs px-3 py-1.5 bg-indigo-600 text-white rounded-full hover:bg-indigo-700 font-medium' }, showLogForm ? 'Cancel' : '+ Log a Change')
-                ),
-                showLogForm && React.createElement('div', { className: 'px-5 py-4 border-b border-gray-100 bg-indigo-50' },
-                    React.createElement('div', { className: 'flex flex-wrap gap-3 items-end' },
-                        React.createElement('div', null,
-                            React.createElement('label', { className: 'text-xs font-medium text-indigo-800 block mb-1' }, 'Date of change'),
-                            React.createElement('input', { type: 'date', value: logDate, onChange: e => setLogDate(e.target.value), className: 'border border-indigo-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-500' })
-                        ),
-                        React.createElement('div', { className: 'flex-1 min-w-48' },
-                            React.createElement('label', { className: 'text-xs font-medium text-emerald-700 block mb-1' }, 'Added communities (comma-separated)'),
-                            React.createElement('input', { type: 'text', placeholder: 'mac, macos, shortcuts', value: logAdded, onChange: e => setLogAdded(e.target.value), className: 'w-full border border-indigo-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-500' })
-                        ),
-                        React.createElement('div', { className: 'flex-1 min-w-48' },
-                            React.createElement('label', { className: 'text-xs font-medium text-red-600 block mb-1' }, 'Removed communities (comma-separated)'),
-                            React.createElement('input', { type: 'text', placeholder: 'technology, iphone', value: logRemoved, onChange: e => setLogRemoved(e.target.value), className: 'w-full border border-indigo-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-500' })
-                        ),
-                        React.createElement('button', { onClick: addChangeLogEntry, className: 'px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700' }, 'Save Entry')
-                    )
-                ),
-                changeLog.length === 0
-                    ? React.createElement('div', { className: 'px-5 py-8 text-center text-sm text-gray-400' }, 'No changes logged yet. When you make targeting changes, log them here to annotate the lineage chart.')
-                    : React.createElement('div', null,
-                        [...changeLog].sort((a,b) => b.date < a.date ? -1 : 1).map(entry => React.createElement('div', { key: entry.id, className: 'px-5 py-3 border-b border-gray-50 flex items-start gap-4 hover:bg-gray-50' },
-                            React.createElement('div', { className: 'text-xs font-mono text-gray-400 w-24 shrink-0 pt-0.5' }, entry.date),
-                            React.createElement('div', { className: 'flex-1 flex flex-wrap gap-1.5' },
-                                entry.added.map(s => React.createElement('span', { key: 'a'+s, className: 'text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 font-medium' }, '+ r/' + s)),
-                                entry.removed.map(s => React.createElement('span', { key: 'r'+s, className: 'text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-800 border border-red-200 font-medium' }, '− r/' + s))
-                            ),
-                            React.createElement('button', { onClick: () => deleteChangeLogEntry(entry.id), className: 'text-gray-300 hover:text-red-500 text-xs shrink-0' }, '✕')
-                        ))
-                    )
-            )
-        ),
-
-        // ════════ PERIODS TAB ═════════════════════════════════════════════════
-        activeTab === 'periods' && React.createElement('div', { className: 'space-y-4' },
-            periods.length === 0
-                ? React.createElement('div', { className: 'text-center text-gray-400 py-12' }, 'No periods yet.')
-                : periods.map(p => {
-                    const sp = p.data.reduce((s,d)=>s+d.spend,0);
-                    const tr = p.data.reduce((s,d)=>s+d.trials,0);
-                    const avgCPA = tr ? sp/tr : 0;
-                    return React.createElement('div', { key: p.id, className: 'bg-white rounded-xl border border-gray-200 p-5 flex items-center gap-5 ' + (p.archived ? 'opacity-50' : '') },
-                        React.createElement('div', { className: 'flex-1' },
-                            React.createElement('div', { className: 'font-semibold text-gray-800' }, p.label),
-                            React.createElement('div', { className: 'text-xs text-gray-400 mt-0.5' }, p.date + ' · ' + p.data.length + ' subreddits · ' + tr + ' trials · avg $' + avgCPA.toFixed(2) + ' CPA')
-                        ),
-                        React.createElement('div', { className: 'flex items-center gap-2' },
-                            p.id !== 'baseline' && React.createElement('button', { onClick: () => archivePeriod(p.id), className: 'text-xs px-3 py-1.5 rounded-full border border-gray-200 text-gray-500 hover:border-gray-400 font-medium' }, p.archived ? 'Unarchive' : 'Archive'),
-                            p.id !== 'baseline' && React.createElement('button', { onClick: () => deletePeriod(p.id), className: 'text-xs px-3 py-1.5 rounded-full border border-red-100 text-red-500 hover:bg-red-50 font-medium' }, 'Delete'),
-                            React.createElement('button', { onClick: () => { setActivePeriodId(p.id); setActiveTab('analyzer'); }, className: 'text-xs px-3 py-1.5 rounded-full bg-indigo-600 text-white font-medium hover:bg-indigo-700' }, 'View →')
-                        )
-                    );
-                })
-        )
-    );
-}
-
-// ─── COMMUNITIES INSIGHTS ────────────────────────────────────────────────────
-function CommunitiesInsights({ data, periods, activePeriod, cpaThreshGreen, cpaThreshYellow, TIER }) {
-    const scatterRef = useRef(null);
-    const scatterInst = useRef(null);
-    const donutRef = useRef(null);
-    const donutInst = useRef(null);
-    const sparklineRefs = useRef({});
-    const sparklineInsts = useRef({});
-    const [highlightSub, setHighlightSub] = useState(null);
-
-    // ── Sorted by spend descending for the sparkline table ────────────────
-    const bySpend = [...data].sort((a,b) => b.spend - a.spend).slice(0, 15);
-
-    // ── All dates in period ───────────────────────────────────────────────
-    const allDates = [...new Set(
-        data.flatMap(d => Object.keys(d.daily || {}))
-    )].sort();
-
-    // ── 7-day rolling CPA per sub ─────────────────────────────────────────
-    function rollingCPA(subData, windowSize = 7) {
-        const daily = subData.daily || {};
-        return allDates.map((date, i) => {
-            const window = allDates.slice(Math.max(0, i - windowSize + 1), i + 1);
-            const spend = window.reduce((s, d) => s + (daily[d]?.spend || 0), 0);
-            const trials = window.reduce((s, d) => s + (daily[d]?.trials || 0), 0);
-            return trials > 0 ? spend / trials : null;
-        });
-    }
-
-    // ── Tier spend breakdown ───────────────────────────────────────────────
-    const tierSpend = { green: 0, yellow: 0, red: 0 };
-    const tierTrials = { green: 0, yellow: 0, red: 0 };
-    data.forEach(d => {
-        tierSpend[d.tier] += d.spend;
-        tierTrials[d.tier] += d.trials;
-    });
-    const totalSpend = Object.values(tierSpend).reduce((a,b) => a+b, 0);
-    const totalTrials = Object.values(tierTrials).reduce((a,b) => a+b, 0);
-
-    // ── Scatter chart: Spend vs CPA, bubble = trials ──────────────────────
-    useEffect(() => {
-        if (!scatterRef.current) return;
-        if (scatterInst.current) scatterInst.current.destroy();
-
-        const green = data.filter(d => d.tier === 'green');
-        const yellow = data.filter(d => d.tier === 'yellow');
-        const red = data.filter(d => d.tier === 'red');
-
-        const makeDataset = (arr, color, label) => ({
-            label,
-            data: arr.map(d => ({ x: d.spend, y: d.cpa, r: Math.max(4, Math.sqrt(d.trials) * 3), sub: d.sub })),
-            backgroundColor: color + '99',
-            borderColor: color,
-            borderWidth: 1.5,
-        });
-
-        scatterInst.current = new Chart(scatterRef.current, {
-            type: 'bubble',
-            data: {
-                datasets: [
-                    makeDataset(red, '#ef4444', 'EXCLUDE'),
-                    makeDataset(yellow, '#f59e0b', 'MONITOR'),
-                    makeDataset(green, '#10b981', 'TARGET'),
-                ]
-            },
-            options: {
-                responsive: true, maintainAspectRatio: false,
-                plugins: {
-                    legend: { position: 'top' },
-                    tooltip: {
-                        callbacks: {
-                            label: ctx => {
-                                const p = ctx.raw;
-                                return `r/${p.sub}  $${p.x.toFixed(0)} spend · $${p.y.toFixed(2)} CPA · bubble = trials`;
-                            }
-                        }
-                    },
-                    annotation: {
-                        annotations: {
-                            greenLine: { type: 'line', yMin: cpaThreshGreen, yMax: cpaThreshGreen, borderColor: '#10b981', borderWidth: 1, borderDash: [4,3], label: { display: true, content: 'TARGET threshold', position: 'end', backgroundColor: '#10b98133', color: '#065f46', font: { size: 10 } } },
-                            yellowLine: { type: 'line', yMin: cpaThreshYellow, yMax: cpaThreshYellow, borderColor: '#f59e0b', borderWidth: 1, borderDash: [4,3], label: { display: true, content: 'EXCLUDE threshold', position: 'end', backgroundColor: '#fef3c733', color: '#92400e', font: { size: 10 } } },
-                        }
-                    }
-                },
-                scales: {
-                    x: { title: { display: true, text: 'Total Spend ($)', font: { size: 11 } }, ticks: { callback: v => '$'+v.toFixed(0) } },
-                    y: { title: { display: true, text: 'CPA ($/paid sub)', font: { size: 11 } }, beginAtZero: true, ticks: { callback: v => '$'+v.toFixed(0) } }
-                }
-            }
-        });
-        return () => { if (scatterInst.current) scatterInst.current.destroy(); };
-    }, [data.map(d=>d.sub).join(','), cpaThreshGreen, cpaThreshYellow]);
-
-    // ── Donut chart: spend by tier ─────────────────────────────────────────
-    useEffect(() => {
-        if (!donutRef.current) return;
-        if (donutInst.current) donutInst.current.destroy();
-        donutInst.current = new Chart(donutRef.current, {
-            type: 'doughnut',
-            data: {
-                labels: ['TARGET', 'MONITOR', 'EXCLUDE'],
-                datasets: [{
-                    data: [tierSpend.green, tierSpend.yellow, tierSpend.red],
-                    backgroundColor: ['#10b981', '#f59e0b', '#ef4444'],
-                    borderWidth: 2,
-                    borderColor: '#fff',
-                }]
-            },
-            options: {
-                responsive: true, maintainAspectRatio: false,
-                cutout: '68%',
-                plugins: {
-                    legend: { display: false },
-                    tooltip: { callbacks: { label: ctx => ` $${ctx.raw.toFixed(0)} (${(ctx.raw/totalSpend*100).toFixed(0)}%)` } }
-                }
-            }
-        });
-        return () => { if (donutInst.current) donutInst.current.destroy(); };
-    }, [data.map(d=>d.sub).join(','), cpaThreshGreen, cpaThreshYellow]);
-
-    // ── Sparklines per sub (7d rolling CPA) ───────────────────────────────
-    useEffect(() => {
-        bySpend.forEach(subData => {
-            const canv = sparklineRefs.current[subData.sub];
-            if (!canv) return;
-            if (sparklineInsts.current[subData.sub]) { sparklineInsts.current[subData.sub].destroy(); }
-            const cpas = rollingCPA(subData);
-            const isHighlighted = subData.sub === highlightSub;
-            const color = subData.tier === 'green' ? '#10b981' : subData.tier === 'yellow' ? '#f59e0b' : '#ef4444';
-            sparklineInsts.current[subData.sub] = new Chart(canv, {
-                type: 'line',
-                data: {
-                    labels: allDates,
-                    datasets: [{ data: cpas, borderColor: color, borderWidth: isHighlighted ? 2.5 : 1.5, pointRadius: 0, tension: 0.4, spanGaps: true, fill: true, backgroundColor: color + '18' }]
-                },
-                options: {
-                    responsive: false, animation: false,
-                    plugins: { legend: { display: false }, tooltip: { enabled: false } },
-                    scales: { x: { display: false }, y: { display: false, beginAtZero: true } }
-                }
-            });
-        });
-        return () => { Object.values(sparklineInsts.current).forEach(c => { try { c.destroy(); } catch(e){} }); sparklineInsts.current = {}; };
-    }, [data.map(d=>d.sub).join(','), highlightSub]);
-
-    // ── Waste / opportunity numbers ────────────────────────────────────────
-    const excludeSpend = tierSpend.red;
-    const targetAvgCPA = tierSpend.green > 0 && tierTrials.green > 0 ? tierSpend.green / tierTrials.green : null;
-    const hypotheticalTrials = targetAvgCPA ? Math.round(excludeSpend / targetAvgCPA) : null;
-    const actualExcludeTrials = tierTrials.red;
-    const trialUplift = hypotheticalTrials ? hypotheticalTrials - actualExcludeTrials : null;
-
-    return React.createElement('div', { className: 'space-y-6' },
-
-        // ── Waste callout ─────────────────────────────────────────────────
-        React.createElement('div', { className: 'grid grid-cols-3 gap-4' },
-            [
-                {
-                    label: 'Spend on EXCLUDE-tier',
-                    value: '$' + excludeSpend.toFixed(0),
-                    sub: (excludeSpend/totalSpend*100).toFixed(0) + '% of total budget',
-                    color: 'text-red-600', bg: 'bg-red-50 border-red-200'
-                },
-                {
-                    label: 'Trials from EXCLUDE-tier',
-                    value: actualExcludeTrials,
-                    sub: 'at avg $' + (excludeSpend/Math.max(actualExcludeTrials,1)).toFixed(2) + ' CPA',
-                    color: 'text-red-600', bg: 'bg-red-50 border-red-200'
-                },
-                {
-                    label: trialUplift ? '+' + trialUplift + ' trials possible' : 'Reallocation upside',
-                    value: trialUplift ? '+' + trialUplift : '—',
-                    sub: targetAvgCPA ? 'if EXCLUDE spend moved to TARGET subs ($' + targetAvgCPA.toFixed(2) + ' CPA)' : 'need TARGET subs first',
-                    color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200'
-                },
-            ].map(s => React.createElement('div', { key: s.label, className: 'rounded-xl border p-4 ' + s.bg },
-                React.createElement('div', { className: 'text-xs font-medium text-gray-500 mb-1' }, s.label),
-                React.createElement('div', { className: 'text-2xl font-bold ' + s.color }, s.value),
-                React.createElement('div', { className: 'text-xs text-gray-500 mt-0.5' }, s.sub)
-            ))
-        ),
-
-        // ── Scatter + Donut row ───────────────────────────────────────────
-        React.createElement('div', { className: 'grid grid-cols-3 gap-5' },
-
-            // Scatter — 2/3
-            React.createElement('div', { className: 'col-span-2 bg-white rounded-xl border border-gray-200 p-5' },
-                React.createElement('div', { className: 'mb-3' },
-                    React.createElement('div', { className: 'text-sm font-semibold text-gray-800' }, 'Spend vs CPA — Bubble size = trials'),
-                    React.createElement('div', { className: 'text-xs text-gray-400 mt-0.5' }, 'Top-left quadrant = high spend, low CPA = gold. Bottom-right = waste.')
-                ),
-                React.createElement('div', { style: { height: 300 } }, React.createElement('canvas', { ref: scatterRef }))
-            ),
-
-            // Donut + tier breakdown — 1/3
-            React.createElement('div', { className: 'bg-white rounded-xl border border-gray-200 p-5' },
-                React.createElement('div', { className: 'text-sm font-semibold text-gray-800 mb-4' }, 'Budget Allocation by Tier'),
-                React.createElement('div', { style: { height: 140 }, className: 'relative mb-4' },
-                    React.createElement('canvas', { ref: donutRef }),
-                    React.createElement('div', { className: 'absolute inset-0 flex flex-col items-center justify-center pointer-events-none' },
-                        React.createElement('div', { className: 'text-2xl font-bold text-gray-900' }, '$' + totalSpend.toFixed(0)),
-                        React.createElement('div', { className: 'text-xs text-gray-400' }, 'total spend')
-                    )
-                ),
-                React.createElement('div', { className: 'space-y-2' },
-                    [
-                        { tier: 'green', label: 'TARGET', color: 'bg-emerald-500', textColor: 'text-emerald-700' },
-                        { tier: 'yellow', label: 'MONITOR', color: 'bg-amber-400', textColor: 'text-amber-700' },
-                        { tier: 'red', label: 'EXCLUDE', color: 'bg-red-400', textColor: 'text-red-700' },
-                    ].map(t => React.createElement('div', { key: t.tier },
-                        React.createElement('div', { className: 'flex justify-between text-xs mb-0.5' },
-                            React.createElement('span', { className: 'font-medium ' + t.textColor }, t.label),
-                            React.createElement('span', { className: 'text-gray-500' }, '$' + tierSpend[t.tier].toFixed(0) + ' · ' + (tierSpend[t.tier]/totalSpend*100).toFixed(0) + '%')
-                        ),
-                        React.createElement('div', { className: 'h-1.5 bg-gray-100 rounded-full' },
-                            React.createElement('div', { className: 'h-1.5 rounded-full ' + t.color, style: { width: (tierSpend[t.tier]/totalSpend*100) + '%' } })
-                        )
-                    ))
-                )
-            )
-        ),
-
-        // ── Sparkline table: top 15 by spend, 7d rolling CPA ─────────────
-        React.createElement('div', { className: 'bg-white rounded-xl border border-gray-200 overflow-hidden' },
-            React.createElement('div', { className: 'px-5 py-3 border-b border-gray-100 bg-gray-50' },
-                React.createElement('div', { className: 'text-sm font-semibold text-gray-800' }, '7-Day Rolling CPA Trend'),
-                React.createElement('div', { className: 'text-xs text-gray-400 mt-0.5' }, 'Top 15 by spend · rolling 7-day window smooths daily noise · Jan 22 → Feb 20')
-            ),
-            React.createElement('div', { className: 'divide-y divide-gray-50' },
-                bySpend.map(subData => {
-                    const tier = TIER[subData.tier];
-                    const cpas = rollingCPA(subData).filter(v => v !== null);
-                    const firstCPA = cpas[0];
-                    const lastCPA = cpas[cpas.length - 1];
-                    const trend = firstCPA && lastCPA ? ((lastCPA - firstCPA) / firstCPA * 100) : null;
-                    return React.createElement('div', {
-                        key: subData.sub,
-                        className: 'px-5 py-3 flex items-center gap-4 hover:bg-gray-50 transition-colors cursor-default',
-                        onMouseEnter: () => setHighlightSub(subData.sub),
-                        onMouseLeave: () => setHighlightSub(null),
-                    },
-                        // Sub name + tier badge
-                        React.createElement('div', { className: 'w-36 shrink-0' },
-                            React.createElement('a', { href: 'https://reddit.com/r/'+subData.sub, target: '_blank', rel: 'noreferrer', className: 'text-sm font-medium text-gray-800 hover:text-indigo-600 hover:underline' }, 'r/'+subData.sub),
-                            React.createElement('div', { className: 'mt-0.5' },
-                                React.createElement('span', { className: 'text-xs font-bold px-1.5 py-0.5 rounded-full ' + tier.badge }, tier.label)
-                            )
-                        ),
-                        // Stats
-                        React.createElement('div', { className: 'w-28 shrink-0 text-xs' },
-                            React.createElement('div', { className: 'text-gray-500' }, '$' + subData.spend.toFixed(0) + ' spend'),
-                            React.createElement('div', { className: 'font-semibold ' + tier.text }, '$' + subData.cpa.toFixed(2) + ' CPA')
-                        ),
-                        // Trend indicator
-                        React.createElement('div', { className: 'w-20 shrink-0 text-xs text-right' },
-                            trend !== null
-                                ? React.createElement('span', { className: 'font-semibold ' + (trend < -5 ? 'text-emerald-600' : trend > 5 ? 'text-red-600' : 'text-gray-400') },
-                                    (trend > 0 ? '↑' : '↓') + ' ' + Math.abs(trend).toFixed(0) + '%'
-                                )
-                                : React.createElement('span', { className: 'text-gray-300' }, '—')
-                        ),
-                        // Sparkline
-                        React.createElement('div', { className: 'flex-1' },
-                            React.createElement('canvas', { ref: el => sparklineRefs.current[subData.sub] = el, height: 36, style: { width: '100%', display: 'block' } })
-                        )
-                    );
-                })
-            )
-        )
-    );
-}
-
 
 function Financial({ campaigns, settings }) {
     const cashChartRef = useRef(null);
@@ -3431,9 +2626,18 @@ function Financial({ campaigns, settings }) {
     const isScalable = roas12 >= 1 && paybackMonth && paybackMonth.month <= 12;
     const isOptimize = roas12 >= 0.7 && (!paybackMonth || paybackMonth.month > 12);
 
-    const fmtK = (n) => { const abs=Math.abs(n); const sign=n<0?'-':''; return abs>=1000?sign+'$'+(abs/1000).toFixed(1)+'k':sign+'$'+abs.toFixed(0); };
+    const fmtK = (n) => { const abs=Math.abs(n); const sign=n<0?'-':''; return abs>=1000?sign+'
+</body>
+<\/html>
++(abs/1000).toFixed(1)+'k':sign+'
+</body>
+<\/html>
++abs.toFixed(0); };
     const fmtN = (n) => n>=1000?(n/1000).toFixed(1)+'k':Math.round(n).toString();
-    const fmt2 = (n) => '$'+n.toFixed(2);
+    const fmt2 = (n) => '
+</body>
+<\/html>
++n.toFixed(2);
     const fmtM = (n) => n>=1000000?(n/1000000).toFixed(2)+'M':n>=1000?(n/1000).toFixed(1)+'k':Math.round(n).toString();
 
     // ── Charts ─────────────────────────────────────────────────────────────
@@ -3457,8 +2661,11 @@ function Financial({ campaigns, settings }) {
                 options: {
                     responsive:true, maintainAspectRatio:false,
                     interaction:{mode:'index',intersect:false},
-                    plugins:{ legend:{position:'top',labels:{font:{size:11},boxWidth:12}}, tooltip:{callbacks:{label:ctx=>` ${ctx.dataset.label}: $${ctx.parsed.y.toFixed(3)}`}} },
-                    scales:{ y:{ticks:{callback:v=>'$'+v.toFixed(2)},title:{display:true,text:'$ per install',font:{size:10}}}, x:{grid:{color:'rgba(0,0,0,0.04)'}} }
+                    plugins:{ legend:{position:'top',labels:{font:{size:11},boxWidth:12}}, tooltip:{callbacks:{label:ctx=>` ${ctx.dataset.label}: ${ctx.parsed.y.toFixed(3)}`}} },
+                    scales:{ y:{ticks:{callback:v=>'
+</body>
+<\/html>
++v.toFixed(2)},title:{display:true,text:'$ per install',font:{size:10}}}, x:{grid:{color:'rgba(0,0,0,0.04)'}} }
                 }
             });
         }
@@ -3588,11 +2795,23 @@ function Financial({ campaigns, settings }) {
             <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2 px-1">💰 Ad Revenue KPIs — at {fmtK(projectedMonthlySpend)}/mo spend</div>
             <div className="grid grid-cols-5 gap-3">
                 {[
-                    { label: 'ARPDAU', value: '$'+MODEL.arpdau.toFixed(4), sub: 'ad rev / DAU / day', bg:'bg-amber-50', border:'border-amber-200', text:'text-amber-800', sub_c:'text-amber-500', big:false },
-                    { label: 'ARPMAU', value: '$'+arpmau.toFixed(3), sub: 'ARPDAU × DAU/MAU × 30', bg:'bg-amber-50', border:'border-amber-200', text:'text-amber-800', sub_c:'text-amber-500', big:false },
+                    { label: 'ARPDAU', value: '
+</body>
+<\/html>
++MODEL.arpdau.toFixed(4), sub: 'ad rev / DAU / day', bg:'bg-amber-50', border:'border-amber-200', text:'text-amber-800', sub_c:'text-amber-500', big:false },
+                    { label: 'ARPMAU', value: '
+</body>
+<\/html>
++arpmau.toFixed(3), sub: 'ARPDAU × DAU/MAU × 30', bg:'bg-amber-50', border:'border-amber-200', text:'text-amber-800', sub_c:'text-amber-500', big:false },
                     { label: 'DAU @ M12', value: fmtM(proj[11]?.dau||0), sub: (MODEL.dauMauRatio*100).toFixed(0)+'% of MAU '+fmtM(proj[11]?.mau||0), bg:'bg-orange-50', border:'border-orange-200', text:'text-orange-800', sub_c:'text-orange-500', big:false },
-                    { label: 'Ad LTV/Install (12M)', value: '$'+(adLTV12).toFixed(2), sub: 'cumul. ad rev per install', bg:'bg-yellow-50', border:'border-yellow-300', text:'text-yellow-800', sub_c:'text-yellow-600', big:true },
-                    { label: 'Blended LTV/Install (12M)', value: '$'+(blendedLTV12).toFixed(2), sub: 'ad + sub revenue combined', bg:'bg-indigo-50', border:'border-indigo-300', text:'text-indigo-800', sub_c:'text-indigo-500', big:true },
+                    { label: 'Ad LTV/Install (12M)', value: '
+</body>
+<\/html>
++(adLTV12).toFixed(2), sub: 'cumul. ad rev per install', bg:'bg-yellow-50', border:'border-yellow-300', text:'text-yellow-800', sub_c:'text-yellow-600', big:true },
+                    { label: 'Blended LTV/Install (12M)', value: '
+</body>
+<\/html>
++(blendedLTV12).toFixed(2), sub: 'ad + sub revenue combined', bg:'bg-indigo-50', border:'border-indigo-300', text:'text-indigo-800', sub_c:'text-indigo-500', big:true },
                 ].map((item,i) => (
                     <div key={i} className={"rounded-xl px-3 py-3 text-center border "+(item.big?'ring-2 ring-offset-1 ring-amber-300 ':'')+item.bg+' '+item.border}>
                         <div className={"text-xs font-medium mb-1 "+item.sub_c}>{item.label}</div>
@@ -3652,7 +2871,10 @@ function Financial({ campaigns, settings }) {
                         ...(MODEL.subEnabled ? [{ label:'M12 Sub Revenue', value:fmtK(proj[11]?.subRev||0)+'/mo', sub:'🔒 secondary' }] : []),
                         { label:'M12 Total Revenue', value:fmtK(proj[11]?.totalRev||0)+'/mo', sub:'combined' },
                         { label:'M12 Net CF', value:fmtK(proj[11]?.netCF||0)+'/mo', sub:(proj[11]?.margin||0).toFixed(0)+'% margin' },
-                        { label:'24M Blended LTV', value:'$'+blendedLTV24.toFixed(2)+'/install', sub:'vs CPI '+fmt2(cpi) },
+                        { label:'24M Blended LTV', value:'
+</body>
+<\/html>
++blendedLTV24.toFixed(2)+'/install', sub:'vs CPI '+fmt2(cpi) },
                         { label:'LTV:CPI Ratio', value:(blendedLTV24/Math.max(cpi,0.01)).toFixed(1)+'×', sub:'payback multiple' },
                     ].filter(Boolean).map((item,i) => (
                         <div key={i} className="bg-gray-50 rounded-lg p-2.5">
@@ -3683,10 +2905,22 @@ function Financial({ campaigns, settings }) {
             </div>
             <div className="mt-3 grid grid-cols-4 gap-3">
                 {[
-                    { label:'Ad LTV 3M', value:'$'+adLTVperInstall(3).toFixed(3) },
-                    { label:'Ad LTV 6M', value:'$'+adLTVperInstall(6).toFixed(3) },
-                    { label:'Ad LTV 12M', value:'$'+adLTV12.toFixed(3) },
-                    { label:'Ad LTV 24M', value:'$'+adLTV24.toFixed(3) },
+                    { label:'Ad LTV 3M', value:'
+</body>
+<\/html>
++adLTVperInstall(3).toFixed(3) },
+                    { label:'Ad LTV 6M', value:'
+</body>
+<\/html>
++adLTVperInstall(6).toFixed(3) },
+                    { label:'Ad LTV 12M', value:'
+</body>
+<\/html>
++adLTV12.toFixed(3) },
+                    { label:'Ad LTV 24M', value:'
+</body>
+<\/html>
++adLTV24.toFixed(3) },
                 ].map((item,i) => (
                     <div key={i} className="bg-amber-50 border border-amber-200 rounded-lg p-2.5 text-center">
                         <div className="text-xs text-amber-600 mb-0.5">{item.label}</div>
