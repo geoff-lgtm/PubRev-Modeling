@@ -416,6 +416,17 @@ function Campaigns({campaigns, campaignMeta, campaigns_raw, settings, timeframes
     const sparkRefs = useRef({});
     const sparkInsts = useRef({});
 
+    // Retention/LTV helpers (same as Financial)
+    const A_FIT=0.0259, K_FIT=0.02075;
+    const OBS_RET=[[0,1.0],[1,0.15996],[2,0.07865],[3,0.05923],[4,0.05000],[5,0.04255],[6,0.05112],[7,0.03647],[10,0.03077],[14,0.03279],[18,0.02857],[21,0.01713],[30,0.0131],[45,0.0107],[75,0.0054]];
+    const retAtDay = d => {
+        if(d===0) return 1.0;
+        for(let i=0;i<OBS_RET.length-1;i++){const[d0,r0]=OBS_RET[i],[d1,r1]=OBS_RET[i+1];if(d>=d0&&d<=d1)return r0+(d-d0)/(d1-d0)*(r1-r0);}
+        return A_FIT*Math.exp(-K_FIT*d);
+    };
+    const adLTV12 = (() => { let s=0; for(let m=0;m<=12;m++){let dd=0;for(let d=m*30;d<(m+1)*30;d++)dd+=retAtDay(d);s+=dd*(settings.arpdau||0.157);} return s; })();
+    const arpdau = settings.arpdau||0.157;
+
     useEffect(()=>{
         campaigns.forEach(c=>{
             const raw = campaigns_raw[c.name];
@@ -424,57 +435,188 @@ function Campaigns({campaigns, campaignMeta, campaigns_raw, settings, timeframes
             const dates = Object.keys(raw.dailyData||{}).sort().slice(-14);
             sparkInsts.current[c.name] = new Chart(sparkRefs.current[c.name],{type:'line',data:{labels:dates,datasets:[{data:dates.map(d=>(raw.dailyData[d]?.spend||0)),borderColor:'#3b82f6',borderWidth:1.5,pointRadius:0,fill:false,tension:0.3}]},options:{responsive:false,plugins:{legend:{display:false},tooltip:{enabled:false}},scales:{x:{display:false},y:{display:false}}}});
         });
-        return ()=>Object.values(sparkInsts.current).forEach(c=>c.destroy());
+        return ()=>Object.values(sparkInsts.current).forEach(c=>c?.destroy());
     },[campaigns]);
 
-    const recColor = {scale:'text-emerald-600 bg-emerald-50',increase:'text-blue-600 bg-blue-50',maintain:'text-amber-600 bg-amber-50',decrease:'text-orange-600 bg-orange-50',pause:'text-red-600 bg-red-50'};
+    const recColor = {scale:'text-emerald-600 bg-emerald-50 border-emerald-200',increase:'text-blue-600 bg-blue-50 border-blue-200',maintain:'text-amber-600 bg-amber-50 border-amber-200',decrease:'text-orange-600 bg-orange-50 border-orange-200',pause:'text-red-600 bg-red-50 border-red-200'};
+    const recEmoji = {scale:'🚀',increase:'⬆️',maintain:'🟡',decrease:'⬇️',pause:'⛔'};
+
+    // Sort by spend descending
+    const sorted = [...campaigns].sort((a,b)=>b.spend-a.spend);
 
     return e('div', {className:'space-y-4'},
+        // Header
         e('div', {className:'flex items-center justify-between'},
-            e('h2', {className:'text-xl font-semibold'}, 'Campaigns'),
-            e('div', {className:'text-xs text-gray-400'}, campaigns.length + ' campaigns · click row for detail')
+            e('div', null,
+                e('h2',{className:'text-xl font-semibold'},'Campaigns'),
+                e('p',{className:'text-xs text-gray-400 mt-0.5'},'Click any campaign for full unit economics · Ad LTV uses real retention curve')
+            ),
+            e('div',{className:'text-right text-xs text-gray-400'},
+                e('div',null,sorted.length+' campaigns · sorted by spend'),
+                e('div',{className:'text-emerald-600 font-semibold'},'12M ad LTV/install: $'+adLTV12.toFixed(3))
+            )
         ),
-        campaigns.map(c => {
+
+        // Campaign rows
+        sorted.map(c => {
             const rec = getRec(c);
             const broad = getBroadLearnings(c.name);
             const isOpen = selected===c.name;
-            return e('div', {key:c.name, className:'border border-gray-200 rounded-xl overflow-hidden'},
-                e('div', {className:'flex items-center gap-4 px-4 py-3 cursor-pointer hover:bg-gray-50 bg-white', onClick:()=>setSelected(isOpen?null:c.name)},
+            const raw = campaigns_raw[c.name];
+
+            // Per-campaign unit economics
+            const cpi = c.cpi||0;
+            const optInRate = c.optInRate||0;
+            const trialConv = settings.trialConvRate||0.40;
+            const arppu = settings.arppu||2.70;
+            const subEnabled = settings.subEnabled!==false;
+            const cpa = c.cpa||0;
+            // Ad LTV vs CPA
+            const adROAS = cpi>0 ? adLTV12/cpi : 0;
+            // Blended LTV (ad + sub)
+            const subLTV12 = subEnabled ? optInRate*trialConv*arppu*2.4 : 0;
+            const blendedLTV = adLTV12 + subLTV12;
+            const blendedROAS = cpi>0 ? blendedLTV/cpi : 0;
+
+            // 7d metrics
+            const m7 = getMetrics(raw, settings, 7);
+            const spend7 = m7?.spend||0;
+            const cpa7 = m7?.cpa||0;
+
+            return e('div', {key:c.name, className:'border border-gray-200 rounded-xl overflow-hidden bg-white'},
+                // Row header
+                e('div', {className:'flex items-center gap-4 px-4 py-3 cursor-pointer hover:bg-gray-50', onClick:()=>setSelected(isOpen?null:c.name)},
                     e('div', {className:'flex-1 min-w-0'},
-                        e('div', {className:'font-medium text-sm text-gray-800'}, c.name),
-                        e('div', {className:'text-xs text-gray-400 mt-0.5'}, c.platform + ' · ' + c.days + ' days data')
+                        e('div',{className:'font-medium text-sm text-gray-800 truncate'},c.name),
+                        e('div',{className:'text-xs text-gray-400 mt-0.5'},c.platform+' · '+c.days+'d data · $'+fmtK(c.spend).replace('$','')+' spend')
                     ),
-                    e('canvas', {ref:el=>{if(el)sparkRefs.current[c.name]=el;}, width:80, height:30, style:{display:'block'}}),
-                    e('div', {className:'text-right min-w-0'},
-                        e('div', {className:cls('text-xs px-2 py-0.5 rounded-full font-medium', recColor[rec.action]||'text-gray-600 bg-gray-100')}, rec.action),
-                        e('div', {className:'text-xs text-gray-400 mt-0.5'}, 'CPA ' + (c.cpa>0?fmtD(c.cpa):'—'))
+                    e('canvas',{ref:el=>{if(el)sparkRefs.current[c.name]=el;},width:80,height:28,style:{display:'block',flexShrink:0}}),
+                    // Key stats inline
+                    e('div',{className:'hidden sm:flex items-center gap-4 text-xs'},
+                        e('div',{className:'text-center'},e('div',{className:'text-gray-400'},'CPI'),e('div',{className:'font-mono font-semibold text-gray-700'},cpi>0?fmtD(cpi):'—')),
+                        e('div',{className:'text-center'},e('div',{className:'text-gray-400'},'CPA'),e('div',{className:cls('font-mono font-semibold',cpa<settings.targetCPA?'text-emerald-600':cpa<settings.maxCPA?'text-amber-600':'text-red-600')},cpa>0?fmtD(cpa):'—')),
+                        e('div',{className:'text-center'},e('div',{className:'text-gray-400'},'Ad ROAS'),e('div',{className:cls('font-mono font-semibold',adROAS>=1?'text-emerald-600':adROAS>=0.7?'text-amber-600':'text-red-600')},(adROAS*100).toFixed(0)+'%')),
+                        e('div',{className:'text-center'},e('div',{className:'text-gray-400'},'Blended'),e('div',{className:cls('font-mono font-semibold',blendedROAS>=1?'text-emerald-600':blendedROAS>=0.7?'text-amber-600':'text-red-600')},(blendedROAS*100).toFixed(0)+'%'))
                     ),
-                    e('div', {className:'text-gray-300 text-sm ml-1'}, isOpen?'▲':'▼')
+                    e('div',{className:cls('text-xs px-2 py-1 rounded-full border font-medium ml-2',recColor[rec.action]||'text-gray-600 bg-gray-100 border-gray-200')},recEmoji[rec.action]+' '+rec.action),
+                    e('div',{className:'text-gray-300 text-xs ml-1'},isOpen?'▲':'▼')
                 ),
-                isOpen && e('div', {className:'border-t border-gray-100 bg-gray-50 p-4'},
-                    e('div', {className:'grid grid-cols-4 gap-4 text-sm mb-4'},
-                        [['Spend',fmtM(c.spend)],['Installs',fmtK(c.installs)],['Opt-ins',fmtK(c.trials)],['CPA',c.cpa>0?fmtD(c.cpa):'—'],['CPI',c.cpi>0?fmtD(c.cpi):'—'],['CTR',c.ctr.toFixed(2)+'%'],['CVR',c.cvr.toFixed(2)+'%'],['Opt-in Rate',(c.optInRate*100).toFixed(1)+'%']].map(([l,v])=>
-                            e('div', {key:l, className:'bg-white border border-gray-200 rounded-lg p-3'},
-                                e('div',{className:'text-xs text-gray-500'},l),
-                                e('div',{className:'font-semibold text-gray-800 mt-0.5'},v)
+
+                // Expanded detail
+                isOpen && e('div', {className:'border-t border-gray-100 bg-gray-50/50'},
+
+                    // ── THE VERDICT ──
+                    e('div',{className:cls('mx-4 mt-4 rounded-xl p-4 border-2',
+                        blendedROAS>=1?'bg-emerald-50 border-emerald-400':blendedROAS>=0.7?'bg-amber-50 border-amber-400':'bg-red-50 border-red-400')},
+                        e('div',{className:'flex items-start justify-between gap-4'},
+                            e('div',{className:'flex-1'},
+                                e('div',{className:cls('text-xs font-bold uppercase tracking-wider mb-1 opacity-60',blendedROAS>=1?'text-emerald-700':blendedROAS>=0.7?'text-amber-700':'text-red-700')},'Campaign Verdict'),
+                                e('div',{className:cls('text-2xl font-black mb-1.5',blendedROAS>=1?'text-emerald-700':blendedROAS>=0.7?'text-amber-700':'text-red-700')},
+                                    blendedROAS>=1?'✅ PROFITABLE':'🛑 UNDERWATER'
+                                ),
+                                e('div',{className:cls('text-sm',blendedROAS>=1?'text-emerald-800':blendedROAS>=0.7?'text-amber-800':'text-red-800')},
+                                    blendedROAS>=1
+                                        ? `12M blended LTV $${blendedLTV.toFixed(2)} vs CPI $${cpi.toFixed(2)} — ${(blendedROAS*100).toFixed(0)}% ROAS. ${rec.msg}`
+                                        : `12M blended LTV $${blendedLTV.toFixed(2)} vs CPI $${cpi.toFixed(2)} — need LTV to reach $${cpi.toFixed(2)} to break even. ${rec.msg}`
+                                )
+                            ),
+                            e('div',{className:'text-right shrink-0'},
+                                e('div',{className:cls('text-4xl font-black tabular-nums',blendedROAS>=1?'text-emerald-700':blendedROAS>=0.7?'text-amber-700':'text-red-700')},(blendedROAS*100).toFixed(0)+'%'),
+                                e('div',{className:'text-xs text-gray-500 mt-0.5'},'12M blended ROAS'),
+                                e('div',{className:'text-xs text-gray-400'},'break-even = 100%')
                             )
                         )
                     ),
-                    e('div', {className:'bg-white border border-gray-200 rounded-lg p-3 text-sm'},
-                        e('div',{className:'font-medium text-gray-700 mb-1'},'Recommendation'),
-                        e('div',{className:cls('text-sm',recColor[rec.action])},rec.msg)
+
+                    // ── Unit Economics Funnel ──
+                    e('div',{className:'mx-4 mt-3'},
+                        e('div',{className:'text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2'},'Unit Economics Funnel'),
+                        e('div',{className:'flex items-stretch gap-1'},
+                            ...[
+                                {label:'CPI',value:fmtD(cpi),sub:'cost/install',bg:'bg-blue-50',border:'border-blue-200',text:'text-blue-800'},
+                                null,
+                                {label:'Opt-in Rate',value:(optInRate*100).toFixed(1)+'%',sub:(c.trials||0)+' trials',bg:'bg-indigo-50',border:'border-indigo-200',text:'text-indigo-800'},
+                                null,
+                                {label:'Trial Conv',value:(trialConv*100).toFixed(0)+'%',sub:'trial→paid',bg:'bg-violet-50',border:'border-violet-200',text:'text-violet-800'},
+                                null,
+                                {label:'CPA',value:cpa>0?fmtD(cpa):'—',sub:cpa<settings.targetCPA?'✅ on target':'⚠️ above $'+settings.targetCPA,bg:cpa<settings.targetCPA?'bg-emerald-50':'bg-red-50',border:cpa<settings.targetCPA?'border-emerald-300':'border-red-300',text:cpa<settings.targetCPA?'text-emerald-800':'text-red-700'},
+                            ].map((item,i)=>item===null
+                                ? e('div',{key:i,className:'flex items-center text-gray-300 text-sm font-bold self-center px-0.5'},'→')
+                                : e('div',{key:i,className:cls('flex-1 rounded-lg px-2 py-2.5 text-center border',item.bg,item.border)},
+                                    e('div',{className:'text-xs text-gray-500 mb-0.5'},item.label),
+                                    e('div',{className:cls('font-bold text-sm',item.text)},item.value),
+                                    e('div',{className:'text-xs text-gray-400 mt-0.5'},item.sub)
+                                )
+                            )
+                        )
                     ),
-                    broad && e('div', {className:'mt-2 bg-white border border-gray-200 rounded-lg p-3 text-xs text-gray-500'},
-                        'Trend: CPA ', broad.improving?'improving ↓':'worsening ↑', ' · first 7d avg $'+broad.firstCPA+' → last 7d $'+broad.lastCPA+' ('+broad.deltaPct+'%)'
+
+                    // ── LTV vs CPI breakdown ──
+                    e('div',{className:'mx-4 mt-3 grid grid-cols-4 gap-2'},
+                        [
+                            {label:'12M Ad LTV',value:'$'+adLTV12.toFixed(3),sub:'per install · real retention',color:'text-amber-600',bg:'bg-amber-50',border:'border-amber-200'},
+                            {label:'12M Sub LTV',value:subEnabled?'$'+subLTV12.toFixed(3):'disabled',sub:subEnabled?`${(optInRate*100).toFixed(1)}% opt-in × ${(trialConv*100).toFixed(0)}% conv`:'toggle in Settings',color:'text-violet-600',bg:'bg-violet-50',border:'border-violet-200'},
+                            {label:'12M Blended LTV',value:'$'+blendedLTV.toFixed(3),sub:'ad + sub combined',color:'text-blue-700',bg:'bg-blue-50',border:'border-blue-200'},
+                            {label:'ARPDAU',value:'$'+(arpdau).toFixed(4),sub:'from mediation data',color:'text-emerald-600',bg:'bg-emerald-50',border:'border-emerald-200'},
+                        ].map(k=>e('div',{key:k.label,className:cls('rounded-lg p-3 border',k.bg,k.border)},
+                            e('div',{className:'text-xs text-gray-500'},k.label),
+                            e('div',{className:cls('font-bold text-base mt-0.5',k.color)},k.value),
+                            e('div',{className:'text-xs text-gray-400 mt-0.5'},k.sub)
+                        ))
                     ),
-                    e('div', {className:'mt-3 flex gap-2'},
-                        e('textarea', {className:'flex-1 text-xs border border-gray-200 rounded p-2 resize-none', rows:2, placeholder:'Notes...', value:campaignMeta[c.name]?.notes||'', onChange:ev=>updateMeta(c.name,{notes:ev.target.value})})
+
+                    // ── 7d vs all time stats ──
+                    e('div',{className:'mx-4 mt-3'},
+                        e('div',{className:'text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2'},'Performance Detail'),
+                        e('div',{className:'grid grid-cols-4 gap-2'},
+                            [
+                                ['Spend (all)',fmtM(c.spend),'total'],
+                                ['Spend (7d)',fmtM(spend7),'last 7 days'],
+                                ['Installs',fmtK(c.installs||0),'total'],
+                                ['Opt-ins',fmtK(c.trials||0),(c.optInRate*100).toFixed(1)+'% rate'],
+                                ['CPA (all)',cpa>0?fmtD(cpa):'—','subscription CPA'],
+                                ['CPA (7d)',cpa7>0?fmtD(cpa7):'—','7-day window'],
+                                ['CTR',c.ctr.toFixed(2)+'%','click-through rate'],
+                                ['CVR',c.cvr.toFixed(2)+'%','click-to-trial'],
+                            ].map(([l,v,s])=>e('div',{key:l,className:'bg-white border border-gray-200 rounded-lg p-2.5'},
+                                e('div',{className:'text-xs text-gray-400'},l),
+                                e('div',{className:'font-semibold text-gray-800 mt-0.5 text-sm'},v),
+                                e('div',{className:'text-xs text-gray-400'},s)
+                            ))
+                        )
+                    ),
+
+                    // ── Trend & advice ──
+                    e('div',{className:'mx-4 mt-3 grid grid-cols-2 gap-3'},
+                        // Recommendation
+                        e('div',{className:cls('rounded-lg p-3 border',recColor[rec.action]||'bg-gray-50 border-gray-200')},
+                            e('div',{className:'text-xs font-semibold uppercase tracking-wide mb-1 opacity-70'},'Recommendation'),
+                            e('div',{className:'text-sm font-medium'},recEmoji[rec.action]+' '+rec.msg)
+                        ),
+                        // Trend
+                        broad
+                            ? e('div',{className:cls('rounded-lg p-3 border',broad.improving?'bg-emerald-50 border-emerald-200':'bg-red-50 border-red-200')},
+                                e('div',{className:'text-xs font-semibold uppercase tracking-wide mb-1 opacity-70'},'CPA Trend (first 7d → last 7d)'),
+                                e('div',{className:cls('text-sm font-medium',broad.improving?'text-emerald-700':'text-red-700')},
+                                    (broad.improving?'↓ Improving':'↑ Worsening')+' · $'+broad.firstCPA+' → $'+broad.lastCPA+' ('+broad.deltaPct+'%)'
+                                )
+                            )
+                            : e('div',{className:'rounded-lg p-3 border bg-gray-50 border-gray-200'},
+                                e('div',{className:'text-xs font-semibold uppercase tracking-wide mb-1 text-gray-400'},'CPA Trend'),
+                                e('div',{className:'text-xs text-gray-400'},'Need 14+ days of data for trend analysis')
+                            )
+                    ),
+
+                    // Notes
+                    e('div',{className:'mx-4 mt-3 mb-4'},
+                        e('textarea',{className:'w-full text-xs border border-gray-200 rounded-lg p-2.5 resize-none bg-white',rows:2,placeholder:'Campaign notes...',value:campaignMeta[c.name]?.notes||'',onChange:ev=>updateMeta(c.name,{notes:ev.target.value})})
                     )
                 )
             );
         })
     );
 }
+
 
 // ── History ───────────────────────────────────────────────────────────────────
 function History({campaigns, snapshots, changelog}) {
@@ -708,11 +850,12 @@ function Retention() {
     const ltvRef = useRef(null), ltvInst = useRef(null);
 
     const OBSERVED = [
-        {day:1,ret:0.1034},{day:2,ret:0.0546},{day:3,ret:0.0430},{day:4,ret:0.0351},{day:5,ret:0.0333},
-        {day:7,ret:0.0333},{day:10,ret:0.0303},{day:14,ret:0.0198},{day:21,ret:0.0187},
+        {day:1,ret:0.15996},{day:2,ret:0.07865},{day:3,ret:0.05923},{day:4,ret:0.05000},{day:5,ret:0.04255},
+        {day:6,ret:0.05112},{day:7,ret:0.03647},{day:10,ret:0.03077},{day:14,ret:0.03279},
+        {day:18,ret:0.02857},{day:21,ret:0.01713},
         {day:30,ret:0.0131},{day:45,ret:0.0107},{day:75,ret:0.0054},
     ];
-    const A=0.0236, K=0.01881;
+    const A=0.0259, K=0.02075; // half-life 33.4d · blended: new D1-D21 + old D30-D75 anchors
     const tailFit = d => A*Math.exp(-K*d);
     const piecewise = d => {
         if (d===0) return 1.0;
@@ -729,16 +872,22 @@ function Retention() {
     };
 
     const EOM = [
-        {m:0,d:0,ret:1.0,type:'install'},{m:1,d:30,ret:0.01340,type:'observed'},
-        {m:2,d:60,ret:0.00762,type:'extrap'},{m:3,d:90,ret:0.00434,type:'extrap'},
-        {m:4,d:120,ret:0.00247,type:'extrap'},{m:5,d:150,ret:0.00140,type:'extrap'},
-        {m:6,d:180,ret:0.00080,type:'extrap'},{m:7,d:210,ret:0.00045,type:'extrap'},
-        {m:8,d:240,ret:0.00026,type:'extrap'},{m:9,d:270,ret:0.00015,type:'extrap'},
-        {m:10,d:300,ret:0.00008,type:'extrap'},{m:11,d:330,ret:0.00005,type:'extrap'},
-        {m:12,d:360,ret:0.00003,type:'extrap'},
+        {m:0,d:1.0,ret:1.00000,type:'install'},
+        {m:1,d:30,ret:0.01310,type:'observed'},
+        {m:2,d:60,ret:0.00746,type:'extrap'},
+        {m:3,d:90,ret:0.00400,type:'extrap'},
+        {m:4,d:120,ret:0.00215,type:'extrap'},
+        {m:5,d:150,ret:0.00115,type:'extrap'},
+        {m:6,d:180,ret:0.00062,type:'extrap'},
+        {m:7,d:210,ret:0.00033,type:'extrap'},
+        {m:8,d:240,ret:0.00018,type:'extrap'},
+        {m:9,d:270,ret:0.00010,type:'extrap'},
+        {m:10,d:300,ret:0.00005,type:'extrap'},
+        {m:11,d:330,ret:0.00003,type:'extrap'},
+        {m:12,d:360,ret:0.00001,type:'extrap'},
     ];
 
-    const ARPDAU=0.157;
+    const ARPDAU=0.157; // from mediation report
     const cumulativeLTV=[]; let running=0;
     for (let m=0;m<=12;m++) {
         let dauDays=0;
@@ -768,7 +917,7 @@ function Retention() {
     },[]);
 
     const fmtPct = v => (v*100).toFixed(v<0.001?4:v<0.01?3:2)+'%';
-    const benchmarks = [{l:'D1',v:fmtPct(0.1034),badge:'OBSERVED',cls:'bg-emerald-50 text-emerald-700 border-emerald-200'},{l:'D7',v:fmtPct(0.0333),badge:'OBSERVED',cls:'bg-emerald-50 text-emerald-700 border-emerald-200'},{l:'D30',v:fmtPct(0.0131),badge:'OBSERVED',cls:'bg-emerald-50 text-emerald-700 border-emerald-200'},{l:'D45',v:fmtPct(0.0107),badge:'OBSERVED',cls:'bg-emerald-50 text-emerald-700 border-emerald-200'},{l:'D75',v:fmtPct(0.0054),badge:'OBSERVED',cls:'bg-emerald-50 text-emerald-700 border-emerald-200'},{l:'Tail half-life',v:'37 days',badge:'FITTED',cls:'bg-amber-50 text-amber-700 border-amber-200'}];
+    const benchmarks = [{l:'D1',v:fmtPct(0.15996),badge:'OBSERVED',cls:'bg-emerald-50 text-emerald-700 border-emerald-200'},{l:'D7',v:fmtPct(0.03647),badge:'OBSERVED',cls:'bg-emerald-50 text-emerald-700 border-emerald-200'},{l:'D14',v:fmtPct(0.03279),badge:'OBSERVED',cls:'bg-emerald-50 text-emerald-700 border-emerald-200'},{l:'D21',v:fmtPct(0.01713),badge:'OBSERVED',cls:'bg-emerald-50 text-emerald-700 border-emerald-200'},{l:'D30',v:fmtPct(0.0131),badge:'OBSERVED (old)',cls:'bg-blue-50 text-blue-700 border-blue-200'},{l:'Tail half-life',v:'33 days',badge:'FITTED',cls:'bg-amber-50 text-amber-700 border-amber-200'}];
 
     return e('div', {className:'space-y-6'},
         e('div', {className:'flex items-start justify-between'},
@@ -822,8 +971,8 @@ function Retention() {
         ),
         e('div',{className:'bg-gray-50 border border-gray-200 rounded-xl p-4 text-xs text-gray-500 space-y-1.5'},
             e('div',{className:'font-semibold text-gray-700 text-sm'},'📐 Methodology'),
-            e('div',null,e('span',{className:'font-medium text-gray-600'},'Data:'),' 85 daily cohorts (Dec 1 2025 – Feb 23 2026), US. Cohorts <20 installs excluded. Outlier values >50% excluded.'),
-            e('div',null,e('span',{className:'font-medium text-gray-600'},'Extrapolation:'),' Exp decay fitted to D30/D45/D75: f(d) = 0.0236 × e^(−0.01881d). Half-life = 37 days. Lower bound — solitaire games often show loyal long-tail not yet captured.')
+            e('div',null,e('span',{className:'font-medium text-gray-600'},'Data:'),' Blended: 29 cohorts Jan–Feb 2026 (D1–D21, higher quality) + 85 cohorts Dec 2025–Feb 2026 (D30–D75 anchors). US market.'),
+            e('div',null,e('span',{className:'font-medium text-gray-600'},'Extrapolation:'),' Tail fit anchored to D21 (new cohorts) + D30/D45/D75 (85-cohort data): f(d) = 0.0259 × e^(−0.02075d). Half-life = 33.4 days.')
         )
     );
 }
@@ -836,12 +985,35 @@ function Financial({campaigns, settings}) {
     const [spendMultiplier, setSpendMultiplier] = useState(1);
     const [monthlySpendOverride, setMonthlySpendOverride] = useState('');
     const [showDeepDive, setShowDeepDive] = useState(false);
+    const [activeTab, setActiveTab] = useState('scenarios'); // scenarios | howwegothere | workings
+    const [scenarioRetBoost, setScenarioRetBoost] = useState(0);    // % boost to D1 retention
+    const [scenarioCpiCut, setScenarioCpiCut] = useState(0);         // % CPI reduction
+    const [scenarioArpdauBoost, setScenarioArpdauBoost] = useState(0); // % ARPDAU boost
     const MONTHS = 24;
 
     useEffect(()=>{ if(campaigns.length>0&&selectedCampaigns.length===0) setSelectedCampaigns(campaigns.map(c=>c.name)); },[campaigns]);
 
-    const SUB_RET = [1.0,0.676,0.587,0.531,0.494,0.474,0.460,0.449,0.444,0.438,0.431,0.404,0.400,0.400,0.400,0.400,0.400,0.400,0.400,0.400,0.400,0.400,0.400,0.400];
+    // ── Retention curve (blended: new D1-D21 + old D30-D75) ──
+    const A_FIT=0.0259, K_FIT=0.02075;
+    const OBS_RET=[[0,1.0],[1,0.15996],[2,0.07865],[3,0.05923],[4,0.05000],[5,0.04255],[6,0.05112],[7,0.03647],[10,0.03077],[14,0.03279],[18,0.02857],[21,0.01713],[30,0.0131],[45,0.0107],[75,0.0054]];
+    const retAtDay = (d, retBoostFrac=0) => {
+        // retBoostFrac shifts early retention proportionally
+        let base;
+        if(d===0) return 1.0;
+        for(let i=0;i<OBS_RET.length-1;i++){const[d0,r0]=OBS_RET[i],[d1,r1]=OBS_RET[i+1];if(d>=d0&&d<=d1){base=r0+(d-d0)/(d1-d0)*(r1-r0);break;}}
+        if(base===undefined) base=A_FIT*Math.exp(-K_FIT*d);
+        // decay the boost so it's full at D1, zero by D75
+        const boost = retBoostFrac * Math.max(0, 1 - d/75);
+        return Math.min(1, base*(1+boost));
+    };
 
+    const dauDaysPerMonth = (retBoostFrac=0) => {
+        const arr = [];
+        for(let m=0;m<=MONTHS;m++){let dd=0;for(let d=m*30;d<(m+1)*30;d++)dd+=retAtDay(d,retBoostFrac);arr.push(dd);}
+        return arr;
+    };
+
+    // ── Inputs ──
     const selCamps = campaigns.filter(c=>selectedCampaigns.includes(c.name));
     const totalSpend = selCamps.reduce((s,c)=>s+c.spend,0);
     const totalInstalls = selCamps.reduce((s,c)=>s+c.installs,0);
@@ -850,150 +1022,531 @@ function Financial({campaigns, settings}) {
     const dailySpend = totalSpend/days;
     const dailyInstalls = totalInstalls/days;
     const dailyTrials = totalTrials/days;
-    const overriddenMonthlySpend = monthlySpendOverride ? parseFloat(monthlySpendOverride)||0 : null;
-    const monthlySpend = overriddenMonthlySpend || dailySpend*30*spendMultiplier;
-    const monthlyInstalls = dailyInstalls*30*(overriddenMonthlySpend?overriddenMonthlySpend/(dailySpend*30||1):spendMultiplier);
-    const monthlyTrials = dailyTrials*30*(overriddenMonthlySpend?overriddenMonthlySpend/(dailySpend*30||1):spendMultiplier);
+    const overriddenMonthly = monthlySpendOverride ? parseFloat(monthlySpendOverride)||0 : null;
+    const monthlySpend = overriddenMonthly || dailySpend*30*spendMultiplier;
+    const scaleF = overriddenMonthly ? overriddenMonthly/(dailySpend*30||1) : spendMultiplier;
+    const monthlyInstalls = dailyInstalls*30*scaleF;
+    const monthlyTrials = dailyTrials*30*scaleF;
+    const cpi = totalInstalls>0 ? totalSpend/totalInstalls : 0;
+    const optInRate = totalInstalls>0 ? totalTrials/totalInstalls : 0;
     const trialConv = settings.trialConvRate||0.40;
     const arpdau = settings.arpdau||0.157;
     const arppu = settings.arppu||2.70;
     const apiCost = settings.apiCostPerSub||1.00;
     const subEnabled = settings.subEnabled!==false;
+    const targetCPA = settings.targetCPA||2.50;
+    const monthsOfData = days/30;
+    const baseMonthlySpend = totalSpend/Math.max(monthsOfData,0.5)||3000;
 
-    // Per-install LTV by month: integrate daily DAU retention × ARPDAU
-    // piecewise uses observed D1-D75, tail fit beyond
-    const A_FIT=0.0236, K_FIT=0.01881;
-    const tailFitF = d => A_FIT*Math.exp(-K_FIT*d);
-    const OBS_RET = [[0,1.0],[1,0.1034],[2,0.0546],[3,0.0430],[4,0.0351],[5,0.0333],[7,0.0333],[10,0.0303],[14,0.0198],[21,0.0187],[30,0.0131],[45,0.0107],[75,0.0054]];
-    const retAtDay = d => {
-        if(d===0) return 1.0;
-        for(let i=0;i<OBS_RET.length-1;i++){
-            const [d0,r0]=OBS_RET[i],[d1,r1]=OBS_RET[i+1];
-            if(d>=d0&&d<=d1) return r0+(d-d0)/(d1-d0)*(r1-r0);
-        }
-        return tailFitF(d);
-    };
-    // dauDaysPerInstall[m] = DAU-days generated in month m by 1 install from month 0
-    const dauDaysPerInstall = [];
-    for(let m=0;m<MONTHS+1;m++){
-        let dd=0;
-        for(let d=m*30;d<(m+1)*30;d++) dd+=retAtDay(d);
-        dauDaysPerInstall.push(dd);
-    }
+    const SUB_RET=[1.0,0.676,0.587,0.531,0.494,0.474,0.460,0.449,0.444,0.438,0.431,0.404,...Array(12).fill(0.400)];
 
-    // Monthly projections: sum across all cohorts acquired up to month m
-    const proj = [];
-    for (let m=0;m<MONTHS;m++) {
-        let adRev=0, subRev=0, subCost=0;
-        for (let cohortM=0;cohortM<=m;cohortM++) {
-            const offset=m-cohortM;  // how many months since this cohort was acquired
-            const dd=dauDaysPerInstall[offset]||0;
-            // ad revenue: installs × DAU-days in this month × ARPDAU
-            adRev+=monthlyInstalls*dd*arpdau;
-            if (subEnabled) {
-                const subRet=SUB_RET[offset]!==undefined?SUB_RET[offset]:SUB_RET[SUB_RET.length-1];
-                const paidSubs=monthlyTrials*trialConv;  // paid subs from this cohort
-                subRev+=paidSubs*subRet*arppu;
-                subCost+=paidSubs*subRet*apiCost;
+    // ── Build projection with optional scenario overrides ──
+    const buildProj = (opts={}) => {
+        const retBoost = (opts.retBoostPct||0)/100;
+        const cpiMult = 1-(opts.cpiCutPct||0)/100;
+        const arpdauMult = 1+(opts.arpdauBoostPct||0)/100;
+        const effCpi = cpi*cpiMult;
+        const effArpdau = arpdau*arpdauMult;
+        const effMonthlyInstalls = effCpi>0 ? monthlySpend/effCpi : monthlyInstalls;
+        const effMonthlyTrials = effMonthlyInstalls*optInRate;
+        const dd = dauDaysPerMonth(retBoost);
+        const proj=[];
+        for(let m=0;m<MONTHS;m++){
+            let adRev=0,subRev=0,subCost=0;
+            for(let cm=0;cm<=m;cm++){
+                const offset=m-cm;
+                adRev+=effMonthlyInstalls*(dd[offset]||0)*effArpdau;
+                if(subEnabled){
+                    const sr=SUB_RET[offset]!==undefined?SUB_RET[offset]:0.4;
+                    const ps=effMonthlyTrials*trialConv;
+                    subRev+=ps*sr*arppu; subCost+=ps*sr*apiCost;
+                }
             }
+            const totalRev=adRev+subRev-subCost;
+            proj.push({m,adRev,subRev,subCost,totalRev,spend:monthlySpend,profit:totalRev-monthlySpend});
         }
-        const totalRev=adRev+subRev-subCost;
-        proj.push({m,adRev,subRev,subCost,totalRev,spend:monthlySpend,profit:totalRev-monthlySpend});
-    }
+        let cum=0; proj.forEach(p=>{cum+=p.profit;p.cumProfit=cum;});
+        return proj;
+    };
 
-    const breakEvenMonth = proj.findIndex((p,i)=>i>0&&p.profit>0);
-    const roi12 = proj[11] ? (proj.slice(0,12).reduce((s,p)=>s+p.totalRev,0)-proj.slice(0,12).reduce((s,p)=>s+p.spend,0))/proj.slice(0,12).reduce((s,p)=>s+p.spend,0)*100 : 0;
+    // ── Per-install LTV (for display) ──
+    const ltvPerInstall = (retBoostFrac=0,arpdauBoostFrac=0) => {
+        const dd=dauDaysPerMonth(retBoostFrac);
+        const effArpdau=arpdau*(1+arpdauBoostFrac);
+        let cum=0;
+        return Array.from({length:13},(_,m)=>{cum+=dd[m]*effArpdau;return cum;});
+    };
+
+    const proj = buildProj();
+    const adLTV12 = ltvPerInstall()[12];
+    const subLTV12 = subEnabled ? optInRate*trialConv*arppu*2.4 : 0;
+    const blendedLTV12 = adLTV12+subLTV12;
+    const cpa = monthlyInstalls>0 ? monthlySpend/(monthlyInstalls*optInRate*trialConv) : 0;
+    const breakEvenMonth = proj.findIndex((p,i)=>i>0&&p.cumProfit>=0);
+    const cohortPayback = ltvPerInstall().findIndex((ltv,m)=>m>0&&ltv>=cpi);
+    const roas12 = monthlySpend>0 ? proj.slice(0,12).reduce((s,p)=>s+p.totalRev,0)/proj.slice(0,12).reduce((s,p)=>s+p.spend,0) : 0;
     const cumulRev12 = proj.slice(0,12).reduce((s,p)=>s+p.totalRev,0);
     const cumulSpend12 = proj.slice(0,12).reduce((s,p)=>s+p.spend,0);
 
-    // LTV curve: per-install cumulative LTV using integrated daily retention
-    const ltvByMonth = [];
-    let cumLTV=0;
-    for (let m=0;m<=12;m++) {
-        const dd=dauDaysPerInstall[m]||0;
-        const monthlyAdRev=dd*arpdau;  // $ per install in month m
-        const subLTV=subEnabled&&m<SUB_RET.length?SUB_RET[m]*trialConv*arppu:0;
-        cumLTV+=monthlyAdRev+subLTV;
-        ltvByMonth.push({m,cumLTV,adComponent:monthlyAdRev,subComponent:subLTV});
-    }
+    // ── Verdict logic ──
+    const isScalable = roas12>=1 && (breakEvenMonth>=0&&breakEvenMonth<=12);
+    const isOptimize = roas12>=0.7 && !isScalable;
 
+    // ── Scenario table CPAs ──
+    const scenarioCPAs = [...new Set([cpa*1.5,cpa*1.25,cpa,cpa*0.75,targetCPA*1.5,targetCPA,targetCPA*0.75].map(v=>+v.toFixed(2)).filter(v=>v>0))].sort((a,b)=>b-a);
+
+    const scenarioROAS = (cpaSc, months) => {
+        // Volume constant, only cost changes
+        const subsPerMonth = monthlyInstalls*optInRate*trialConv;
+        const effSpend = subsPerMonth*cpaSc;
+        const dd = dauDaysPerMonth();
+        let adR=0,subR=0,subC=0;
+        for(let m=0;m<months;m++){
+            adR+=monthlyInstalls*(dd[m]||0)*arpdau;
+            if(subEnabled){const sr=SUB_RET[m]!==undefined?SUB_RET[m]:0.4;subR+=subsPerMonth*sr*arppu;subC+=subsPerMonth*sr*apiCost;}
+        }
+        return (effSpend+subC)>0?(adR+subR)/(effSpend+subC)*100:0;
+    };
+
+    // ── What-if scenario comparison ──
+    const whatIfProj = buildProj({retBoostPct:scenarioRetBoost,cpiCutPct:scenarioCpiCut,arpdauBoostPct:scenarioArpdauBoost});
+    const whatIfRoas12 = monthlySpend>0 ? whatIfProj.slice(0,12).reduce((s,p)=>s+p.totalRev,0)/whatIfProj.slice(0,12).reduce((s,p)=>s+p.spend,0) : 0;
+    const whatIfLTV = ltvPerInstall(scenarioRetBoost/100,scenarioArpdauBoost/100)[12];
+    const whatIfBreakEven = whatIfProj.findIndex((p,i)=>i>0&&p.cumProfit>=0);
+    const effCpiWhatIf = cpi*(1-scenarioCpiCut/100);
+
+    // ── Charts ──
     useEffect(()=>{
         if (!ltvRef.current) return;
         if (ltvInst.current) ltvInst.current.destroy();
-        ltvInst.current = new Chart(ltvRef.current,{type:'line',data:{labels:ltvByMonth.map(r=>'M'+r.m),datasets:[
-            {label:'Ad LTV',data:ltvByMonth.map(r=>+r.cumLTV.toFixed(4)),borderColor:'#f59e0b',backgroundColor:'rgba(245,158,11,0.1)',borderWidth:2,fill:true,tension:0.3,pointRadius:3},
-            subEnabled&&{label:'Ad+Sub LTV',data:ltvByMonth.map(r=>+(r.cumLTV+r.subComponent).toFixed(4)),borderColor:'#8b5cf6',borderWidth:2,borderDash:[4,3],tension:0.3,pointRadius:2},
-        ].filter(Boolean)},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{boxWidth:10,font:{size:11}}}},scales:{y:{beginAtZero:true,ticks:{callback:v=>'$'+v.toFixed(3),font:{size:10}}},x:{ticks:{font:{size:10}}}}}});
+        const baseLTV = ltvPerInstall();
+        const whatIfLTVArr = ltvPerInstall(scenarioRetBoost/100,scenarioArpdauBoost/100);
+        const labels = Array.from({length:13},(_,m)=>'M'+m);
+        const datasets = [
+            {label:'Ad LTV (base)',data:baseLTV.map(v=>+v.toFixed(4)),borderColor:'#f59e0b',backgroundColor:'rgba(245,158,11,0.08)',borderWidth:2.5,fill:true,tension:0.3,pointRadius:3},
+        ];
+        if(scenarioRetBoost>0||scenarioCpiCut>0||scenarioArpdauBoost>0){
+            datasets.push({label:'Ad LTV (scenario)',data:whatIfLTVArr.map(v=>+v.toFixed(4)),borderColor:'#10b981',borderDash:[5,4],borderWidth:2,tension:0.3,pointRadius:3,backgroundColor:'transparent'});
+        }
+        // CPI line
+        if(cpi>0) datasets.push({label:'CPI (break-even line)',data:Array(13).fill(+cpi.toFixed(2)),borderColor:'#ef4444',borderDash:[3,3],borderWidth:1.5,pointRadius:0,backgroundColor:'transparent'});
+        ltvInst.current = new Chart(ltvRef.current,{type:'line',data:{labels,datasets},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{boxWidth:12,font:{size:10}}}},scales:{y:{beginAtZero:true,ticks:{callback:v=>'$'+v.toFixed(3),font:{size:9}}},x:{ticks:{font:{size:10}}}}}});
         return ()=>ltvInst.current?.destroy();
-    },[settings,selectedCampaigns,spendMultiplier,monthlySpendOverride]);
+    },[settings,selectedCampaigns,spendMultiplier,monthlySpendOverride,scenarioRetBoost,scenarioCpiCut,scenarioArpdauBoost]);
 
     useEffect(()=>{
         if (!cashRef.current||!showDeepDive) return;
         if (cashInst.current) cashInst.current.destroy();
-        const cumProfit=[]; let cum=0;
-        proj.forEach(p=>{cum+=p.profit; cumProfit.push(+cum.toFixed(0));});
         cashInst.current = new Chart(cashRef.current,{type:'bar',data:{labels:proj.map(p=>'M'+p.m),datasets:[
-            {label:'Monthly P&L',data:proj.map(p=>+p.profit.toFixed(0)),backgroundColor:proj.map(p=>p.profit>=0?'rgba(16,185,129,0.7)':'rgba(239,68,68,0.5)'),borderRadius:3,yAxisID:'y'},
-            {label:'Cumulative',data:cumProfit,type:'line',borderColor:'#6366f1',borderWidth:2,pointRadius:0,tension:0.3,fill:false,yAxisID:'y'},
-        ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{boxWidth:10,font:{size:11}}}},scales:{y:{ticks:{callback:v=>fmtM(v),font:{size:10}},grid:{color:'rgba(0,0,0,0.04)'}},x:{ticks:{font:{size:10},maxRotation:45}}}}});
+            {label:'Ad Revenue',data:proj.map(p=>+p.adRev.toFixed(0)),backgroundColor:'rgba(245,158,11,0.7)',stack:'rev'},
+            {label:'Sub Revenue (net)',data:proj.map(p=>+(p.subRev-p.subCost).toFixed(0)),backgroundColor:'rgba(139,92,246,0.7)',stack:'rev'},
+            {label:'Ad Spend',data:proj.map(p=>+(-p.spend).toFixed(0)),backgroundColor:'rgba(239,68,68,0.5)',stack:'cost'},
+            {label:'Cumulative P&L',data:proj.map(p=>+p.cumProfit.toFixed(0)),type:'line',borderColor:'#3b82f6',borderWidth:2,pointRadius:0,tension:0.3,fill:false,yAxisID:'y'},
+        ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{boxWidth:10,font:{size:10}}}},scales:{y:{ticks:{callback:v=>fmtM(v),font:{size:9}},stacked:true},x:{ticks:{font:{size:9},maxRotation:45}}}}});
         return ()=>cashInst.current?.destroy();
     },[showDeepDive,settings,selectedCampaigns,spendMultiplier,monthlySpendOverride]);
 
+    const verdictBg = isScalable?'bg-emerald-50 border-emerald-400':isOptimize?'bg-amber-50 border-amber-400':'bg-red-50 border-red-400';
+    const verdictColor = isScalable?'text-emerald-700':isOptimize?'text-amber-700':'text-red-700';
+
     const kpis = [
-        {label:'Monthly Spend',value:fmtM(monthlySpend),sub:'input',bg:'bg-blue-50',border:'border-blue-200',color:'text-blue-700'},
-        {label:'Monthly Installs',value:fmtK(monthlyInstalls),sub:'projected',bg:'bg-indigo-50',border:'border-indigo-200',color:'text-indigo-700'},
+        {label:'Monthly Spend',value:fmtM(monthlySpend),sub:'at current rate',bg:'bg-blue-50',border:'border-blue-200',color:'text-blue-700'},
+        {label:'Monthly Installs',value:fmtK(monthlyInstalls),sub:fmtD(cpi)+' CPI',bg:'bg-indigo-50',border:'border-indigo-200',color:'text-indigo-700'},
         {label:'12M Revenue',value:fmtM(cumulRev12),sub:fmtM(cumulSpend12)+' spend',bg:'bg-amber-50',border:'border-amber-200',color:'text-amber-700'},
-        {label:'12M ROI',value:roi12.toFixed(0)+'%',sub:roi12>=0?'profitable':'loss-making',bg:roi12>=0?'bg-emerald-50':'bg-red-50',border:roi12>=0?'border-emerald-200':'border-red-200',color:roi12>=0?'text-emerald-700':'text-red-700'},
-        {label:'Break-even',value:breakEvenMonth>=0?'M'+breakEvenMonth:'> M'+MONTHS,sub:'monthly profitable',bg:'bg-violet-50',border:'border-violet-200',color:'text-violet-700'},
-        {label:'Ad LTV 12M',value:'$'+ltvByMonth[12].cumLTV.toFixed(3),sub:'per install',bg:'bg-orange-50',border:'border-orange-200',color:'text-orange-700'},
+        {label:'12M ROAS',value:(roas12*100).toFixed(0)+'%',sub:roas12>=1?'✅ profitable':'needs work',bg:roas12>=1?'bg-emerald-50':roas12>=0.7?'bg-amber-50':'bg-red-50',border:roas12>=1?'border-emerald-200':roas12>=0.7?'border-amber-200':'border-red-200',color:roas12>=1?'text-emerald-700':roas12>=0.7?'text-amber-700':'text-red-700'},
+        {label:'Break-even',value:breakEvenMonth>=0?'M'+breakEvenMonth:'>M'+MONTHS,sub:'monthly profitable',bg:'bg-violet-50',border:'border-violet-200',color:'text-violet-700'},
+        {label:'Ad LTV 12M',value:'$'+adLTV12.toFixed(3),sub:'per install · real curve',bg:'bg-orange-50',border:'border-orange-200',color:'text-orange-700'},
     ];
 
-    return e('div', {className:'space-y-6'},
-        e('div', {className:'flex items-center justify-between'},
-            e('h2', {className:'text-xl font-semibold'}, 'Financial Model'),
-            e('div', {className:'flex items-center gap-3'},
-                e('label',{className:'text-xs text-gray-500'},'Spend multiplier:'),
-                e('input',{type:'range',min:0.25,max:5,step:0.25,value:spendMultiplier,onChange:ev=>setSpendMultiplier(+ev.target.value),className:'w-24'}),
-                e('span',{className:'text-xs font-mono w-8'},spendMultiplier+'x'),
-                e('input',{type:'number',placeholder:'Override $/mo',value:monthlySpendOverride,onChange:ev=>setMonthlySpendOverride(ev.target.value),className:'border border-gray-200 rounded px-2 py-1 text-xs w-28'})
+    return e('div', {className:'space-y-5'},
+
+        // ── Controls ──
+        e('div',{className:'bg-white border border-gray-200 rounded-xl p-4'},
+            e('div',{className:'text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2'},'Campaigns & Spend'),
+            e('div',{className:'flex flex-wrap gap-1.5 mb-3'},
+                e('button',{onClick:()=>setSelectedCampaigns(campaigns.map(c=>c.name)),className:'text-xs px-2.5 py-1 bg-blue-50 text-blue-600 rounded-full border border-blue-200 font-semibold'},'All'),
+                e('button',{onClick:()=>setSelectedCampaigns([]),className:'text-xs px-2.5 py-1 bg-gray-100 text-gray-500 rounded-full border border-gray-200'},'None'),
+                campaigns.map(c=>{
+                    const sel=selectedCampaigns.includes(c.name);
+                    return e('button',{key:c.name,onClick:()=>setSelectedCampaigns(prev=>sel?prev.filter(n=>n!==c.name):[...prev,c.name]),className:cls('text-xs px-2.5 py-1 rounded-full border font-medium transition-colors',sel?'bg-blue-600 text-white border-blue-600':'bg-white text-gray-500 border-gray-200 hover:border-blue-300')},c.name);
+                })
+            ),
+            e('div',{className:'flex flex-wrap items-end gap-4 pt-3 border-t border-gray-100'},
+                e('div',null,
+                    e('div',{className:'text-xs text-gray-400 mb-1'},'Scale: ',e('strong',{className:'text-blue-600'},spendMultiplier+'×'),' = ',e('strong',null,fmtM(baseMonthlySpend*spendMultiplier)+'/mo')),
+                    e('input',{type:'range',min:0.25,max:10,step:0.25,value:spendMultiplier,onChange:ev=>{setSpendMultiplier(+ev.target.value);setMonthlySpendOverride('');},className:'w-36 accent-blue-600'})
+                ),
+                e('div',null,
+                    e('div',{className:'text-xs text-gray-400 mb-1'},'Monthly spend override'),
+                    e('input',{type:'number',value:monthlySpendOverride,onChange:ev=>setMonthlySpendOverride(ev.target.value),placeholder:'$'+Math.round(baseMonthlySpend),className:'border border-gray-200 rounded px-2 py-1.5 text-xs w-28'})
+                ),
+                selCamps.length>0 && e('div',{className:'text-xs text-gray-500 flex gap-4 flex-wrap'},
+                    e('span',null,'📊 ',e('strong',null,fmtM(totalSpend)),' actual · ',Math.round(monthsOfData*10)/10,'mo of data'),
+                    e('span',null,'📲 ',e('strong',null,fmtK(totalInstalls)),' installs · ',e('strong',null,(optInRate*100).toFixed(1)+'%'),' opt-in'),
+                    e('span',null,'💰 ',e('strong',null,fmtD(cpi)),' CPI · ',e('strong',null,fmtD(cpa)),' CPA')
+                )
             )
         ),
-        e('div', {className:'grid grid-cols-6 gap-3'}, kpis.map(k=>e(KPI,{key:k.label,...k}))),
-        e('div', {className:'grid grid-cols-2 gap-5'},
+
+        // ── THE VERDICT ──
+        e('div',{className:cls('rounded-2xl p-6 border-2',verdictBg)},
+            e('div',{className:'flex items-start justify-between gap-6'},
+                e('div',{className:'flex-1'},
+                    e('div',{className:cls('text-xs font-bold uppercase tracking-widest mb-1 opacity-60',verdictColor)},'The Verdict'),
+                    e('div',{className:cls('text-3xl font-black mb-2',verdictColor)},
+                        isScalable?'✅ SCALE IT':isOptimize?'⚡ OPTIMIZE FIRST':'🛑 NEEDS WORK'
+                    ),
+                    e('div',{className:cls('text-sm leading-relaxed',verdictColor.replace('700','800'))},
+                        isScalable
+                            ? `12M ROAS ${(roas12*100).toFixed(0)}% — profitable. Break-even at M${breakEvenMonth}. Ad LTV $${adLTV12.toFixed(3)} vs CPI $${cpi.toFixed(2)} (${(adLTV12/cpi*100).toFixed(0)}% on ad alone). Economics support scaling.`
+                            : isOptimize
+                            ? `12M ROAS ${(roas12*100).toFixed(0)}% — close but not there. Blended LTV $${blendedLTV12.toFixed(3)} vs CPI $${cpi.toFixed(2)}. Need CPI to drop to ~$${(blendedLTV12*0.95).toFixed(2)} or ARPDAU up to $${(arpdau*(cpi/blendedLTV12)).toFixed(4)} to break even on ad revenue alone.`
+                            : `12M ROAS only ${(roas12*100).toFixed(0)}% (need 100%). Ad LTV $${adLTV12.toFixed(3)} vs CPI $${cpi.toFixed(2)} — spending $${(cpi/adLTV12).toFixed(2)} to earn $1 in ad revenue. ${breakEvenMonth>=0?'Break-even M'+breakEvenMonth+' but slow.':'No break-even in 24mo.'} Use scenarios below to find the path.`
+                    )
+                ),
+                e('div',{className:'text-right shrink-0'},
+                    e('div',{className:cls('text-5xl font-black tabular-nums',verdictColor)},(roas12*100).toFixed(0)+'%'),
+                    e('div',{className:'text-xs text-gray-500 mt-1'},'12M blended ROAS'),
+                    e('div',{className:'text-xs text-gray-400'},'100% = break-even')
+                )
+            ),
+            e('div',{className:'mt-4 grid grid-cols-4 gap-3 pt-4 border-t border-current border-opacity-20'},
+                [
+                    {label:'Ad LTV 12M',value:'$'+adLTV12.toFixed(3),sub:'vs CPI $'+cpi.toFixed(2)+' = '+(adLTV12/cpi*100).toFixed(0)+'%',ok:adLTV12>=cpi},
+                    {label:'Blended LTV 12M',value:'$'+blendedLTV12.toFixed(3),sub:'ad + sub per install',ok:blendedLTV12>=cpi},
+                    {label:'Ad payback',value:cohortPayback>=0?'M'+cohortPayback:'>M12',sub:'when ad LTV > CPI',ok:cohortPayback>=0&&cohortPayback<=12},
+                    {label:'M12 margin',value:proj[11]?(((proj[11].totalRev-proj[11].spend)/Math.max(proj[11].totalRev,1))*100).toFixed(0)+'%':'—',sub:proj[11]&&proj[11].profit>=0?'profitable M12':'still burning M12',ok:proj[11]&&proj[11].profit>=0},
+                ].map(m=>e('div',{key:m.label,className:'text-center'},
+                    e('div',{className:'text-xs text-gray-500 mb-0.5'},m.label),
+                    e('div',{className:cls('text-lg font-bold',m.ok?verdictColor.replace('50','').replace('border-',''):'text-red-600')},m.value),
+                    e('div',{className:'text-xs text-gray-400 mt-0.5'},m.sub)
+                ))
+            )
+        ),
+
+        // ── KPIs ──
+        e('div',{className:'grid grid-cols-6 gap-3'},kpis.map(k=>e(KPI,{key:k.label,...k}))),
+
+        // ── Unit Economics Funnel ──
+        e('div',{className:'bg-white border border-gray-200 rounded-xl p-5'},
+            e('div',{className:'text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3'},'Unit Economics — How Every Dollar Flows'),
+            e('div',{className:'flex items-stretch gap-1.5 flex-wrap mb-4'},
+                ...[
+                    {label:'Monthly Spend',value:fmtM(monthlySpend),sub:'budget in',bg:'bg-gray-50',border:'border-gray-200',text:'text-gray-800'},
+                    null,
+                    {label:'Installs',value:fmtK(monthlyInstalls),sub:fmtD(cpi)+' CPI',bg:'bg-blue-50',border:'border-blue-200',text:'text-blue-800'},
+                    null,
+                    {label:'Trials',value:fmtK(monthlyTrials),sub:(optInRate*100).toFixed(1)+'% opt-in',bg:'bg-indigo-50',border:'border-indigo-200',text:'text-indigo-800'},
+                    null,
+                    {label:'Paid Subs',value:subEnabled?fmtK(monthlyTrials*trialConv):'—',sub:(trialConv*100).toFixed(0)+'% conv',bg:'bg-violet-50',border:'border-violet-200',text:'text-violet-800'},
+                    null,
+                    {label:'CPA',value:fmtD(cpa),sub:cpa<=targetCPA?'✅ on target':'⚠️ $'+fmtD(targetCPA)+' target',bg:cpa<=targetCPA?'bg-emerald-50':'bg-red-50',border:cpa<=targetCPA?'border-emerald-300':'border-red-300',text:cpa<=targetCPA?'text-emerald-800':'text-red-700',big:true},
+                ].map((item,i)=>item===null
+                    ? e('div',{key:i,className:'flex items-center text-gray-300 text-lg font-bold self-center'},'→')
+                    : e('div',{key:i,className:cls('flex-1 rounded-xl px-3 py-3 text-center border',item.bg,item.border,item.big?'ring-2 ring-offset-1 '+(cpa<=targetCPA?'ring-emerald-400':'ring-red-400'):'')},
+                        e('div',{className:'text-xs text-gray-500 mb-0.5'},item.label),
+                        e('div',{className:cls('font-bold',item.text,item.big?'text-2xl':'text-lg')},item.value),
+                        e('div',{className:'text-xs text-gray-400 mt-0.5'},item.sub)
+                    )
+                )
+            ),
+            // LTV grid
+            e('div',{className:'grid grid-cols-2 md:grid-cols-4 gap-3'},
+                [
+                    {label:'12M Ad LTV',value:'$'+adLTV12.toFixed(3),ok:adLTV12>=cpi,sub:(adLTV12>=cpi?'✅':'⚠️')+' vs $'+cpi.toFixed(2)+' CPI'},
+                    {label:'12M Blended LTV',value:'$'+blendedLTV12.toFixed(3),ok:blendedLTV12>=cpi,sub:(blendedLTV12/cpi*100).toFixed(0)+'% of CPI covered'},
+                    {label:'ARPDAU',value:'$'+arpdau.toFixed(4),ok:true,sub:'from mediation report',gray:true},
+                    {label:'M12 Active Subs',value:subEnabled?fmtK(proj[11]?proj.reduce((s,p,i)=>i===11?s+p.subRev/arppu:s,0):0):'—',ok:true,sub:proj[11]?fmtM(proj[11].subRev)+' sub rev M12':'',gray:true},
+                ].map(k=>e('div',{key:k.label,className:cls('rounded-lg p-3 border',k.gray?'bg-gray-50 border-gray-200':k.ok?'bg-emerald-50 border-emerald-200':'bg-red-50 border-red-200')},
+                    e('div',{className:'text-xs text-gray-400 mb-0.5'},k.label),
+                    e('div',{className:cls('font-bold text-lg',k.gray?'text-gray-700':k.ok?'text-emerald-700':'text-red-600')},k.value),
+                    e('div',{className:'text-xs text-gray-400 mt-0.5'},k.sub)
+                ))
+            )
+        ),
+
+        // ── Charts row ──
+        e('div',{className:'grid grid-cols-2 gap-5'},
             e('div',{className:'bg-white border border-gray-200 rounded-xl p-4'},
-                e('div',{className:'text-sm font-semibold text-gray-700 mb-3'},'LTV Curve / Install'),
+                e('div',{className:'text-sm font-semibold text-gray-700 mb-1'},'Ad LTV Curve / Install'),
+                e('div',{className:'text-xs text-gray-400 mb-3'},'Red dashed line = CPI break-even. LTV must cross it to pay back on ad revenue alone.'),
                 e('div',{style:{height:200}},e('canvas',{ref:ltvRef}))
             ),
             e('div',{className:'bg-white border border-gray-200 rounded-xl p-4'},
-                e('div',{className:'flex items-center justify-between mb-3'},
-                    e('div',{className:'text-sm font-semibold text-gray-700'},'Projection ('+MONTHS+'mo)'),
-                    e('button',{onClick:()=>setShowDeepDive(!showDeepDive),className:'text-xs text-blue-600 hover:text-blue-800'},showDeepDive?'Hide P&L':'Show P&L chart')
+                e('div',{className:'flex items-center justify-between mb-1'},
+                    e('div',{className:'text-sm font-semibold text-gray-700'},'Revenue vs Spend (24mo)'),
+                    e('button',{onClick:()=>setShowDeepDive(!showDeepDive),className:'text-xs text-blue-600 hover:text-blue-800'},showDeepDive?'Hide chart':'Show chart')
                 ),
                 showDeepDive
                     ? e('div',{style:{height:200}},e('canvas',{ref:cashRef}))
-                    : e('div',{className:'overflow-x-auto'},
+                    : e('div',{className:'overflow-y-auto',style:{maxHeight:200}},
                         e('table',{className:'w-full text-xs'},
-                            e('thead',null,e('tr',{className:'text-gray-400 border-b border-gray-100'},['Month','Ad Rev','Sub Rev','Total Rev','Spend','Profit'].map(h=>e('th',{key:h,className:'px-2 py-1.5 text-right first:text-left font-medium'},h)))),
-                            e('tbody',null,proj.slice(0,12).map(p=>e('tr',{key:p.m,className:'border-b border-gray-50 hover:bg-gray-50'},
-                                e('td',{className:'px-2 py-1 font-medium text-gray-700'},'M'+p.m),
+                            e('thead',null,e('tr',{className:'text-gray-400 border-b border-gray-100 sticky top-0 bg-white'},
+                                ['Mo','Ad Rev','Sub Rev','Total','Spend','Profit'].map(h=>e('th',{key:h,className:'px-2 py-1.5 text-right first:text-left font-medium'},h))
+                            )),
+                            e('tbody',null,proj.slice(0,12).map(p=>e('tr',{key:p.m,className:cls('border-b border-gray-50 hover:bg-gray-50',p.profit>=0?'':'')},
+                                e('td',{className:'px-2 py-1 font-medium text-gray-600'},'M'+p.m),
                                 e('td',{className:'px-2 py-1 text-right text-amber-600'},fmtM(p.adRev)),
                                 e('td',{className:'px-2 py-1 text-right text-violet-600'},subEnabled?fmtM(p.subRev-p.subCost):'—'),
-                                e('td',{className:'px-2 py-1 text-right text-gray-700 font-semibold'},fmtM(p.totalRev)),
+                                e('td',{className:'px-2 py-1 text-right font-semibold text-gray-700'},fmtM(p.totalRev)),
                                 e('td',{className:'px-2 py-1 text-right text-blue-600'},fmtM(p.spend)),
-                                e('td',{className:cls('px-2 py-1 text-right font-semibold',p.profit>=0?'text-emerald-600':'text-red-600')},fmtM(p.profit))
+                                e('td',{className:cls('px-2 py-1 text-right font-semibold',p.profit>=0?'text-emerald-600':'text-red-500')},fmtM(p.profit))
                             )))
                         )
                     )
             )
         ),
-        e('div',{className:'bg-white border border-gray-200 rounded-xl p-4'},
-            e('div',{className:'text-xs font-semibold text-gray-600 mb-2 uppercase tracking-wide'},'Campaign Selection'),
-            e('div',{className:'flex flex-wrap gap-2'},
-                campaigns.map(c=>e('button',{key:c.name,onClick:()=>setSelectedCampaigns(prev=>prev.includes(c.name)?prev.filter(n=>n!==c.name):[...prev,c.name]),className:cls('text-xs px-3 py-1.5 rounded-full border font-medium transition-colors',selectedCampaigns.includes(c.name)?'bg-blue-600 text-white border-blue-600':'bg-white text-gray-500 border-gray-200 hover:border-gray-400')},c.name))
+
+        // ── Analysis tabs ──
+        e('div',{className:'bg-white border border-gray-200 rounded-xl overflow-hidden'},
+            // Tab bar
+            e('div',{className:'flex border-b border-gray-200 bg-gray-50'},
+                [
+                    {id:'scenarios',label:'📊 Scenarios'},
+                    {id:'whatif',label:'🎛️ What-If'},
+                    {id:'howwegothere',label:'🧮 How We Got Here'},
+                    {id:'workings',label:'💻 Workings'},
+                ].map(t=>e('button',{key:t.id,onClick:()=>setActiveTab(t.id),className:cls('px-4 py-3 text-sm font-medium border-b-2 transition-colors',activeTab===t.id?'border-blue-600 text-blue-600 bg-white':'border-transparent text-gray-500 hover:text-gray-700')},t.label))
+            ),
+
+            // ── SCENARIOS TAB ──
+            activeTab==='scenarios' && e('div',{className:'p-5'},
+                e('p',{className:'text-xs text-gray-500 mb-1'},'ROAS at key milestones across CPA scenarios. Volume held constant — only acquisition cost changes. Orange = current, green = target.'),
+                e('div',{className:'overflow-x-auto'},
+                    e('table',{className:'w-full text-xs'},
+                        e('thead',null,e('tr',{className:'bg-gray-50 border-b border-gray-200'},
+                            [e('th',{key:'cpa',className:'px-3 py-2.5 text-left font-semibold text-gray-600'},'CPA Scenario'),
+                             ...[1,2,3,6,9,12,18,24].map(m=>e('th',{key:m,className:'px-2 py-2.5 text-center font-semibold text-gray-600'},'M'+m)),
+                             e('th',{key:'pb',className:'px-3 py-2.5 text-left font-semibold text-gray-600'},'Payback')]
+                        )),
+                        e('tbody',null,
+                            scenarioCPAs.map(cpaV=>{
+                                const isActual=Math.abs(cpaV-cpa)<0.05;
+                                const isTarget=Math.abs(cpaV-targetCPA)<0.05;
+                                const pb=[1,2,3,6,9,12,18,24].find(m=>scenarioROAS(cpaV,m)>=100);
+                                return e('tr',{key:cpaV,className:cls('border-b border-gray-100',isTarget?'bg-emerald-50':isActual?'bg-orange-50':'hover:bg-gray-50')},
+                                    e('td',{className:'px-3 py-2.5 font-medium'},
+                                        e('span',{className:cls('font-bold',isActual?'text-orange-700':isTarget?'text-emerald-700':'text-gray-700')},fmtD(cpaV)),
+                                        isActual&&e('span',{className:'ml-2 text-xs bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded-full'},'current'),
+                                        isTarget&&e('span',{className:'ml-2 text-xs bg-emerald-100 text-emerald-600 px-1.5 py-0.5 rounded-full'},'target')
+                                    ),
+                                    ...[1,2,3,6,9,12,18,24].map(m=>{
+                                        const r=scenarioROAS(cpaV,m);
+                                        return e('td',{key:m,className:cls('px-2 py-2.5 text-center font-semibold',r>=100?'text-emerald-700 bg-emerald-50':r>=70?'text-amber-700':'text-red-500')},r.toFixed(0)+'%');
+                                    }),
+                                    e('td',{className:'px-3 py-2.5 font-semibold'},
+                                        pb?e('span',{className:'text-emerald-700'},'M'+pb):e('span',{className:'text-red-500'},'>24m')
+                                    )
+                                );
+                            })
+                        )
+                    )
+                ),
+                e('div',{className:'mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-800'},
+                    e('strong',null,'How to read: '),'Each cell = cumulative ROAS after N months. Green ≥100% means paid back. Rows show what happens if you improve (or worsen) CPA while keeping install volume constant. Find the row that matches your optimization target.'
+                )
+            ),
+
+            // ── WHAT-IF TAB ──
+            activeTab==='whatif' && e('div',{className:'p-5 space-y-5'},
+                e('div',null,
+                    e('h3',{className:'font-semibold text-gray-700 mb-1'},'What-If Scenario Builder'),
+                    e('p',{className:'text-xs text-gray-500'},'Adjust levers below to see how they move the model. All changes compound.')
+                ),
+
+                // Sliders
+                e('div',{className:'grid grid-cols-3 gap-4'},
+                    [
+                        {label:'Retention boost',key:'ret',value:scenarioRetBoost,set:setScenarioRetBoost,color:'blue',desc:'Improve D1-D75 retention (decays to zero at D75)',unit:'%',max:100},
+                        {label:'CPI reduction',key:'cpi',value:scenarioCpiCut,set:setScenarioCpiCut,color:'emerald',desc:'Lower cost-per-install via better creative / targeting',unit:'%',max:60},
+                        {label:'ARPDAU boost',key:'arpdau',value:scenarioArpdauBoost,set:setScenarioArpdauBoost,color:'amber',desc:'Higher ad revenue per DAU (better ad placement / fill)',unit:'%',max:100},
+                    ].map(sl=>e('div',{key:sl.key,className:'bg-gray-50 border border-gray-200 rounded-xl p-4'},
+                        e('div',{className:'flex items-center justify-between mb-1'},
+                            e('label',{className:'text-xs font-semibold text-gray-600'},sl.label),
+                            e('span',{className:cls('text-sm font-bold tabular-nums',sl.value>0?'text-'+sl.color+'-600':'text-gray-400')},sl.value>0?'+'+sl.value+'%':'baseline')
+                        ),
+                        e('input',{type:'range',min:0,max:sl.max,step:5,value:sl.value,onChange:ev=>sl.set(+ev.target.value),className:'w-full accent-'+sl.color+'-600 mb-2'}),
+                        e('div',{className:'text-xs text-gray-400'},sl.desc)
+                    ))
+                ),
+
+                // Delta summary
+                e('div',{className:cls('rounded-xl p-4 border-2',whatIfRoas12>=roas12?'bg-emerald-50 border-emerald-300':'bg-red-50 border-red-300')},
+                    e('div',{className:'text-xs font-bold uppercase tracking-wide text-gray-500 mb-3'},'Scenario vs Baseline'),
+                    e('div',{className:'grid grid-cols-4 gap-3'},
+                        [
+                            {label:'12M ROAS',base:(roas12*100).toFixed(0)+'%',scenario:(whatIfRoas12*100).toFixed(0)+'%',delta:((whatIfRoas12-roas12)*100).toFixed(0),up:whatIfRoas12>roas12},
+                            {label:'Ad LTV/install',base:'$'+adLTV12.toFixed(3),scenario:'$'+whatIfLTV.toFixed(3),delta:((whatIfLTV-adLTV12)/adLTV12*100).toFixed(0),up:whatIfLTV>adLTV12},
+                            {label:'Eff. CPI',base:'$'+cpi.toFixed(2),scenario:'$'+effCpiWhatIf.toFixed(2),delta:(-(scenarioCpiCut)).toFixed(0),up:scenarioCpiCut>0},
+                            {label:'Break-even',base:breakEvenMonth>=0?'M'+breakEvenMonth:'>M24',scenario:whatIfBreakEven>=0?'M'+whatIfBreakEven:'>M24',delta:breakEvenMonth>=0&&whatIfBreakEven>=0?breakEvenMonth-whatIfBreakEven:0,up:whatIfBreakEven>=0&&(breakEvenMonth<0||whatIfBreakEven<breakEvenMonth)},
+                        ].map(m=>e('div',{key:m.label,className:'bg-white rounded-lg p-3 border border-gray-200'},
+                            e('div',{className:'text-xs text-gray-400 mb-1'},m.label),
+                            e('div',{className:'font-semibold text-gray-500 text-xs mb-0.5'},'Base: '+m.base),
+                            e('div',{className:cls('font-bold text-base',m.up?'text-emerald-600':'text-red-600')},'→ '+m.scenario),
+                            typeof m.delta==='number'&&m.delta!==0&&e('div',{className:cls('text-xs font-semibold mt-0.5',m.up?'text-emerald-500':'text-red-400')},(m.up?'+':'')+m.delta+(m.label==='Break-even'?' mo earlier':m.label==='Eff. CPI'?'% lower':'%'))
+                        ))
+                    )
+                ),
+
+                // Advice based on scenario
+                (scenarioRetBoost>0||scenarioCpiCut>0||scenarioArpdauBoost>0) && e('div',{className:'bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm'},
+                    e('div',{className:'font-semibold text-blue-800 mb-2'},'💡 What This Tells You'),
+                    e('div',{className:'space-y-1.5 text-blue-700 text-xs'},
+                        scenarioRetBoost>0&&e('div',{key:'ret'},`↑ ${scenarioRetBoost}% retention boost → LTV up $${(whatIfLTV-adLTV12).toFixed(3)}/install. Getting users to return D2 is the highest-leverage retention action — focus on D1 push notifications and D2 re-engagement.`),
+                        scenarioCpiCut>0&&e('div',{key:'cpi'},`↓ ${scenarioCpiCut}% CPI cut → effective CPI drops from $${cpi.toFixed(2)} to $${effCpiWhatIf.toFixed(2)}. At your install volume that's $${fmtK(monthlyInstalls*(cpi-effCpiWhatIf)).replace('$','')} saved per month. Focus: creative refresh + audience exclusions.`),
+                        scenarioArpdauBoost>0&&e('div',{key:'arpdau'},`↑ ${scenarioArpdauBoost}% ARPDAU → ad LTV up from $${adLTV12.toFixed(3)} to $${whatIfLTV.toFixed(3)}/install. Check your ad placement frequency, rewarded video integration, and eCPM floor settings.`)
+                    )
+                )
+            ),
+
+            // ── HOW WE GOT HERE TAB ──
+            activeTab==='howwegothere' && e('div',{className:'p-5 space-y-4'},
+                e('p',{className:'text-xs text-gray-500'},'Every number on this page traces back to one of these three sources. No magic — just math.'),
+
+                // Source 1: Campaign data
+                e('div',{className:'rounded-xl border border-gray-200 overflow-hidden'},
+                    e('div',{className:'bg-blue-600 text-white px-4 py-2.5 text-xs font-bold uppercase tracking-wide'},'📲 Source 1 — Live Campaign Data'),
+                    e('div',{className:'p-4 grid grid-cols-3 gap-3'},
+                        [
+                            {label:'Total Spend',value:fmtM(totalSpend),note:'sum of selected campaigns'},
+                            {label:'Total Installs',value:fmtK(totalInstalls),note:'from campaign data'},
+                            {label:'Total Trials',value:fmtK(totalTrials),note:'opt-ins / trial starts'},
+                            {label:'CPI',value:fmtD(cpi),note:fmtM(totalSpend)+' ÷ '+fmtK(totalInstalls)+' installs'},
+                            {label:'Opt-In Rate',value:(optInRate*100).toFixed(2)+'%',note:fmtK(totalTrials)+' ÷ '+fmtK(totalInstalls)+' installs'},
+                            {label:'Base Monthly Spend',value:fmtM(baseMonthlySpend),note:fmtM(totalSpend)+' ÷ '+monthsOfData.toFixed(1)+'mo of data'},
+                        ].map(r=>e('div',{key:r.label,className:'bg-gray-50 rounded-lg p-3 border border-gray-100'},
+                            e('div',{className:'text-xs text-gray-400 mb-0.5'},r.label),
+                            e('div',{className:'font-bold text-blue-700 text-base'},r.value),
+                            e('div',{className:'text-xs text-gray-400 mt-0.5'},r.note)
+                        ))
+                    )
+                ),
+
+                // Source 2: Retention + ARPDAU
+                e('div',{className:'rounded-xl border border-gray-200 overflow-hidden'},
+                    e('div',{className:'bg-amber-500 text-white px-4 py-2.5 text-xs font-bold uppercase tracking-wide'},'📉 Source 2 — Retention Curve + ARPDAU (from your real data)'),
+                    e('div',{className:'p-4 grid grid-cols-2 gap-3'},
+                        [
+                            {label:'ARPDAU',value:'$'+arpdau.toFixed(4),note:'from mediation report upload · auto-calibrated'},
+                            {label:'D1 Retention',value:'16.0%',note:'median across 29 cohorts Jan-Feb 2026'},
+                            {label:'D30 Retention',value:'1.31%',note:'observed · 85 cohorts Dec 2025-Feb 2026'},
+                            {label:'Tail half-life',value:'33.4 days',note:'f(d) = 0.0259 × e^(−0.02075d) fitted to D21-D75'},
+                        ].map(r=>e('div',{key:r.label,className:'bg-gray-50 rounded-lg p-3 border border-gray-100'},
+                            e('div',{className:'text-xs text-gray-400 mb-0.5'},r.label),
+                            e('div',{className:'font-bold text-amber-700 text-base'},r.value),
+                            e('div',{className:'text-xs text-gray-400 mt-0.5'},r.note)
+                        ))
+                    ),
+                    e('div',{className:'px-4 pb-4'},
+                        e('div',{className:'text-xs text-gray-500 bg-amber-50 rounded-lg p-3 border border-amber-100'},
+                            e('strong',null,'Ad LTV formula: '),'Σ (DAU retention at day d × ARPDAU) for d=0..360 = $'+adLTV12.toFixed(4)+'/install. Each day: '+arpdau.toFixed(4)+'×(% of users still active that day).'
+                        )
+                    )
+                ),
+
+                // Source 3: Model assumptions
+                e('div',{className:'rounded-xl border border-gray-200 overflow-hidden'},
+                    e('div',{className:'bg-violet-600 text-white px-4 py-2.5 text-xs font-bold uppercase tracking-wide'},'⚙️ Source 3 — Model Assumptions (editable in Settings)'),
+                    e('div',{className:'p-4 grid grid-cols-2 md:grid-cols-4 gap-3'},
+                        [
+                            {label:'Trial → Paid',value:(trialConv*100).toFixed(0)+'%',note:'not available from ad data'},
+                            {label:'ARPPU/mo',value:'$'+arppu.toFixed(2),note:'net of app store cut'},
+                            {label:'API Cost/Sub',value:'$'+apiCost.toFixed(2)+'/mo',note:'per active paying sub'},
+                            {label:'Target CPA',value:fmtD(targetCPA),note:'set in Settings tab'},
+                        ].map(r=>e('div',{key:r.label,className:'bg-gray-50 rounded-lg p-3 border border-gray-100'},
+                            e('div',{className:'text-xs text-gray-400 mb-0.5'},r.label),
+                            e('div',{className:'font-bold text-violet-700 text-base'},r.value),
+                            e('div',{className:'text-xs text-gray-400 mt-0.5'},r.note)
+                        ))
+                    )
+                ),
+
+                // Derived math
+                e('div',{className:'rounded-xl border border-gray-200 overflow-hidden'},
+                    e('div',{className:'bg-emerald-600 text-white px-4 py-2.5 text-xs font-bold uppercase tracking-wide'},'🧮 Derived — at '+fmtM(monthlySpend)+'/month'),
+                    e('div',{className:'p-4 space-y-1.5 font-mono text-xs'},
+                        [
+                            {eq:'Installs/mo',calc:fmtM(monthlySpend)+' ÷ '+fmtD(cpi)+' CPI',result:'= '+fmtK(monthlyInstalls)},
+                            {eq:'Trials/mo',calc:fmtK(monthlyInstalls)+' × '+(optInRate*100).toFixed(1)+'% opt-in',result:'= '+fmtK(monthlyTrials)},
+                            {eq:'New Subs/mo',calc:fmtK(monthlyTrials)+' × '+(trialConv*100).toFixed(0)+'% conv',result:'= '+fmtK(monthlyTrials*trialConv)},
+                            {eq:'CPA',calc:fmtM(monthlySpend)+' ÷ '+fmtK(monthlyTrials*trialConv)+' subs',result:'= '+fmtD(cpa)},
+                            {eq:'Ad LTV M0',calc:'1.786 DAU-days × $'+arpdau.toFixed(4)+' ARPDAU',result:'= $'+(1.786*arpdau).toFixed(4)},
+                            {eq:'Ad LTV 12M',calc:'Σ(DAU-days per month × ARPDAU) M0..M12',result:'= $'+adLTV12.toFixed(4)},
+                            {eq:'12M ROAS',calc:'Σ12mo revenue ÷ Σ12mo spend',result:'= '+(roas12*100).toFixed(0)+'%'},
+                        ].map(r=>e('div',{key:r.eq,className:'flex items-baseline gap-2 bg-gray-50 rounded p-2.5 border border-gray-100'},
+                            e('span',{className:'font-bold text-emerald-700 w-32 shrink-0'},r.eq),
+                            e('span',{className:'text-gray-500 flex-1'},r.calc),
+                            e('span',{className:'font-bold text-gray-800 shrink-0'},r.result)
+                        ))
+                    )
+                )
+            ),
+
+            // ── WORKINGS TAB ──
+            activeTab==='workings' && e('div',{className:'p-0'},
+                e('div',{className:'bg-gray-950 text-gray-100 rounded-b-xl p-6 space-y-4',style:{fontFamily:'monospace',fontSize:'12px',lineHeight:'1.8'}},
+                    e('div',{style:{color:'#facc15',fontWeight:'bold',fontSize:'13px',borderBottom:'1px solid #374151',paddingBottom:'8px'}},'▶ FULL AUDIT TRAIL — every number traces to source'),
+                    e('div',null,
+                        e('div',{style:{color:'#34d399',fontWeight:'bold',marginBottom:'6px'}},'① FROM CAMPAIGN DATA'),
+                        e('div',null,'CPI: ',e('span',{style:{color:'#fde047'}},fmtD(cpi)),' = ',fmtM(totalSpend),' ÷ ',fmtK(totalInstalls),' installs'),
+                        e('div',null,'Opt-In Rate: ',e('span',{style:{color:'#fde047'}},(optInRate*100).toFixed(2)+'%'),' = ',fmtK(totalTrials),' trials ÷ ',fmtK(totalInstalls),' installs'),
+                        e('div',null,'Base Monthly Spend: ',e('span',{style:{color:'#fde047'}},fmtM(baseMonthlySpend)),' = ',fmtM(totalSpend),' ÷ ',monthsOfData.toFixed(1),'mo'),
+                    ),
+                    e('div',null,
+                        e('div',{style:{color:'#fbbf24',fontWeight:'bold',marginBottom:'6px'}},'② FROM RETENTION DATA'),
+                        e('div',null,'ARPDAU: ',e('span',{style:{color:'#fde047'}},'$'+arpdau.toFixed(4)),' (mediation report)'),
+                        e('div',null,'D1 Ret: ',e('span',{style:{color:'#fde047'}},'16.0%'),' · D7: 3.65% · D14: 3.28% · D30: 1.31% · D75: 0.54%'),
+                        e('div',null,'Tail fit: f(d) = 0.0259 × e^(−0.02075d)  ·  half-life = 33.4 days'),
+                        e('div',null,'Ad LTV 12M: ',e('span',{style:{color:'#fde047'}},'$'+adLTV12.toFixed(4)),' = Σ(DAU-days[m] × $'+arpdau.toFixed(4)+') for m=0..12'),
+                    ),
+                    e('div',null,
+                        e('div',{style:{color:'#c084fc',fontWeight:'bold',marginBottom:'6px'}},'③ MODEL ASSUMPTIONS'),
+                        e('div',null,'Trial→Paid: ',e('span',{style:{color:'#fde047'}},(trialConv*100).toFixed(0)+'%'),'  ·  ARPPU: ',e('span',{style:{color:'#fde047'}},'$'+arppu.toFixed(2)),'  ·  API cost: ',e('span',{style:{color:'#fde047'}},'$'+apiCost.toFixed(2)+'/sub/mo')),
+                    ),
+                    e('div',null,
+                        e('div',{style:{color:'#6ee7b7',fontWeight:'bold',marginBottom:'6px'}},'④ DERIVED at '+fmtM(monthlySpend)+'/mo'),
+                        e('div',null,'Installs = ',fmtM(monthlySpend),' ÷ ',fmtD(cpi),' = ',e('span',{style:{color:'#fde047'}},fmtK(monthlyInstalls))),
+                        e('div',null,'Trials = ',fmtK(monthlyInstalls),' × ',(optInRate*100).toFixed(1),'% = ',e('span',{style:{color:'#fde047'}},fmtK(monthlyTrials))),
+                        e('div',null,'New Subs = ',fmtK(monthlyTrials),' × ',(trialConv*100).toFixed(0),'% = ',e('span',{style:{color:'#fde047'}},fmtK(monthlyTrials*trialConv))),
+                        e('div',null,'CPA = ',fmtM(monthlySpend),' ÷ ',fmtK(monthlyTrials*trialConv),' = ',e('span',{style:{color:'#fde047'}},fmtD(cpa))),
+                        e('div',null,'12M ROAS = Σ(12mo revenue) ÷ Σ(12mo spend) = ',e('span',{style:{color:'#fde047'}},(roas12*100).toFixed(0)+'%')),
+                    )
+                )
+            )
+        ),
+
+        // ── Deep Dive table ──
+        e('div',{className:'bg-white border border-gray-200 rounded-xl overflow-hidden'},
+            e('button',{onClick:()=>setShowDeepDive(!showDeepDive),className:'w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50'},
+                e('div',null,
+                    e('span',{className:'font-semibold text-gray-700'},'📋 24-Month Projection Table'),
+                    e('span',{className:'ml-3 text-xs text-gray-400'},'full month-by-month numbers with cumulative P&L')
+                ),
+                e('span',{className:cls('text-xs font-medium px-3 py-1 rounded-full border',showDeepDive?'bg-gray-100 text-gray-600 border-gray-200':'bg-blue-50 text-blue-600 border-blue-200')},showDeepDive?'▲ Collapse':'▼ Expand')
+            ),
+            showDeepDive && e('div',{className:'border-t border-gray-100 overflow-x-auto'},
+                e('table',{className:'w-full text-xs'},
+                    e('thead',{className:'bg-gray-50 border-b border-gray-200'},
+                        e('tr',null,['Mo','Installs','New Subs','Ad Rev','Sub Rev','Total Rev','Spend','Net CF','Cumul CF'].map(h=>e('th',{key:h,className:'px-3 py-2 text-left font-semibold text-gray-500 whitespace-nowrap'},h)))
+                    ),
+                    e('tbody',null,proj.map((p,i)=>e('tr',{key:i,className:cls('border-b border-gray-100',p.cumProfit>=0?'bg-emerald-50/30':i%2===0?'bg-white':'bg-gray-50/30')},
+                        e('td',{className:'px-3 py-2 font-bold text-gray-500'},'M'+p.m),
+                        e('td',{className:'px-3 py-2 text-gray-600'},fmtK(monthlyInstalls)),
+                        e('td',{className:'px-3 py-2 text-gray-600'},fmtK(monthlyTrials*trialConv)),
+                        e('td',{className:'px-3 py-2 text-amber-600 font-medium'},fmtM(p.adRev)),
+                        e('td',{className:'px-3 py-2 text-violet-600'},subEnabled?fmtM(p.subRev-p.subCost):'—'),
+                        e('td',{className:'px-3 py-2 text-gray-700 font-semibold'},fmtM(p.totalRev)),
+                        e('td',{className:'px-3 py-2 text-blue-600'},'−'+fmtM(p.spend)),
+                        e('td',{className:cls('px-3 py-2 font-semibold',p.profit>=0?'text-emerald-600':'text-red-500')},fmtM(p.profit)),
+                        e('td',{className:cls('px-3 py-2 font-bold',p.cumProfit>=0?'text-emerald-600':'text-red-500')},(p.cumProfit>=0?'+':'')+fmtM(p.cumProfit))
+                    )))
+                )
             )
         )
     );
 }
+
+
 
 ReactDOM.render(React.createElement(App), document.getElementById('root'));
 </script>
