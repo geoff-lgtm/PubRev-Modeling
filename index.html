@@ -1091,29 +1091,37 @@ function Financial({campaigns, settings}) {
     const isOptimize = roas12>=0.7 && !isScalable;
 
     // ── Scenario table CPAs ──
-    const scenarioCPAs = [...new Set([cpa*1.5,cpa*1.25,cpa,cpa*0.75,targetCPA*1.5,targetCPA,targetCPA*0.75].map(v=>+v.toFixed(2)).filter(v=>v>0))].sort((a,b)=>b-a);
+    // Anchor scenario rows to CPI (always available) so table works even without sub data
+    const effMonthlySpend = cpi>0 ? monthlyInstalls*cpi : monthlySpend;
+    const scenarioAnchor = cpa>0 ? cpa : (cpi>0 ? cpi*0.5 : targetCPA);
+    const scenarioCPAs = [...new Set([
+        scenarioAnchor*2, scenarioAnchor*1.5, scenarioAnchor, scenarioAnchor*0.75, scenarioAnchor*0.5,
+        targetCPA*1.5, targetCPA, targetCPA*0.75
+    ].map(v=>+v.toFixed(2)).filter(v=>v>0))].sort((a,b)=>b-a).slice(0,8);
 
     const scenarioROAS = (cpaSc, months) => {
-        // Volume held constant at current install rate.
-        // CPA scenario changes the implied spend: spend = installs × optIn × trialConv × CPA
-        // (i.e. what would we have spent to get these installs at this CPA?)
-        const subsPerMonth = monthlyInstalls*optInRate*trialConv;
-        if(subsPerMonth<=0||monthlyInstalls<=0) return 0;
-        const effSpend = subsPerMonth*cpaSc;  // implied monthly spend at this CPA
+        // Scenario: what ROAS does one month's cohort achieve by month N?
+        // Spend = installs × CPI (fixed — CPI doesn't change across CPA rows)
+        // Revenue = ad LTV from those installs + sub revenue at that CPA
+        // CPA rows change how many subs you get per install (volume fixed)
         const dd = dauDaysPerMonth();
-        // Revenue: same install volume, so ad rev is constant across scenarios
-        // Sub rev scales with volume (constant here) × retention
+        // Use actual CPI-based monthly spend — this is real money out
+        const effMonthlySpend = cpi>0 ? monthlyInstalls*cpi : monthlySpend;
+        if(effMonthlySpend<=0||monthlyInstalls<=0) return 0;
+        // Subs per month derived from this CPA scenario: subs = spend/CPA
+        const subsPerMonth = cpaSc>0 ? effMonthlySpend/cpaSc : 0;
         let adR=0,subR=0;
         for(let m=0;m<months;m++){
-            // Each month m: sum contributions from cohorts 0..m
             for(let c=0;c<=m;c++){
                 const offset=m-c;
                 adR+=monthlyInstalls*(dd[offset]||0)*arpdau;
-                if(subEnabled){const sr=SUB_RET[offset]!==undefined?SUB_RET[offset]:0.4;subR+=subsPerMonth*sr*arppu;}
+                if(subEnabled&&subsPerMonth>0){
+                    const sr=SUB_RET[offset]!==undefined?SUB_RET[offset]:0.4;
+                    subR+=subsPerMonth*sr*arppu;
+                }
             }
         }
-        // Total spend over `months` months
-        const totalSpend = effSpend*months;
+        const totalSpend=effMonthlySpend*months;
         return totalSpend>0?(adR+subR)/totalSpend*100:0;
     };
 
