@@ -1094,16 +1094,27 @@ function Financial({campaigns, settings}) {
     const scenarioCPAs = [...new Set([cpa*1.5,cpa*1.25,cpa,cpa*0.75,targetCPA*1.5,targetCPA,targetCPA*0.75].map(v=>+v.toFixed(2)).filter(v=>v>0))].sort((a,b)=>b-a);
 
     const scenarioROAS = (cpaSc, months) => {
-        // Volume constant, only cost changes
+        // Volume held constant at current install rate.
+        // CPA scenario changes the implied spend: spend = installs × optIn × trialConv × CPA
+        // (i.e. what would we have spent to get these installs at this CPA?)
         const subsPerMonth = monthlyInstalls*optInRate*trialConv;
-        const effSpend = subsPerMonth*cpaSc;
+        if(subsPerMonth<=0||monthlyInstalls<=0) return 0;
+        const effSpend = subsPerMonth*cpaSc;  // implied monthly spend at this CPA
         const dd = dauDaysPerMonth();
-        let adR=0,subR=0,subC=0;
+        // Revenue: same install volume, so ad rev is constant across scenarios
+        // Sub rev scales with volume (constant here) × retention
+        let adR=0,subR=0;
         for(let m=0;m<months;m++){
-            adR+=monthlyInstalls*(dd[m]||0)*arpdau;
-            if(subEnabled){const sr=SUB_RET[m]!==undefined?SUB_RET[m]:0.4;subR+=subsPerMonth*sr*arppu;}
+            // Each month m: sum contributions from cohorts 0..m
+            for(let c=0;c<=m;c++){
+                const offset=m-c;
+                adR+=monthlyInstalls*(dd[offset]||0)*arpdau;
+                if(subEnabled){const sr=SUB_RET[offset]!==undefined?SUB_RET[offset]:0.4;subR+=subsPerMonth*sr*arppu;}
+            }
         }
-        return effSpend>0?(adR+subR)/effSpend*100:0;
+        // Total spend over `months` months
+        const totalSpend = effSpend*months;
+        return totalSpend>0?(adR+subR)/totalSpend*100:0;
     };
 
     // ── What-if scenario comparison ──
