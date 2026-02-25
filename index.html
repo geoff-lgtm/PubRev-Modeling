@@ -87,7 +87,7 @@ function App() {
     const [settings, setSettings] = useState({
         targetCPA:2.50, maxCPA:8.00, minDailyClicks:50, learningThreshold:50, stabilityDays:3, stabilityTolerance:0.05,
         arpdau:0.157, dauMauRatio:1.0, adsPerDau:121, ecpm:1.32, adFillRate:0.953,
-        arppu:2.70, trialConvRate:0.40, apiCostPerSub:1.00, subEnabled:true,
+        arppu:2.70, trialConvRate:0.40, subEnabled:true,
     });
     const [uploading, setUploading] = useState(false);
     const [uploadingInstalls, setUploadingInstalls] = useState(false);
@@ -686,8 +686,7 @@ function Settings({settings, updateSettings}) {
             ),
             s.subEnabled !== false && e('div', {className:'grid grid-cols-2 gap-4'},
                 e(Field,{label:'ARPPU (net)',fieldKey:'arppu',prefix:'$'}),
-                e(Field,{label:'Trial → Paid Rate',fieldKey:'trialConvRate',suffix:'%',isPercent:true}),
-                e(Field,{label:'API Cost / Sub / Month',fieldKey:'apiCostPerSub',prefix:'$'})
+                e(Field,{label:'Trial → Paid Rate',fieldKey:'trialConvRate',suffix:'%',isPercent:true})
             )
         )
     );
@@ -1032,7 +1031,6 @@ function Financial({campaigns, settings}) {
     const trialConv = settings.trialConvRate||0.40;
     const arpdau = settings.arpdau||0.157;
     const arppu = settings.arppu||2.70;
-    const apiCost = settings.apiCostPerSub||1.00;
     const subEnabled = settings.subEnabled!==false;
     const targetCPA = settings.targetCPA||2.50;
     const monthsOfData = days/30;
@@ -1052,18 +1050,18 @@ function Financial({campaigns, settings}) {
         const dd = dauDaysPerMonth(retBoost);
         const proj=[];
         for(let m=0;m<MONTHS;m++){
-            let adRev=0,subRev=0,subCost=0;
+            let adRev=0,subRev=0;
             for(let cm=0;cm<=m;cm++){
                 const offset=m-cm;
                 adRev+=effMonthlyInstalls*(dd[offset]||0)*effArpdau;
                 if(subEnabled){
                     const sr=SUB_RET[offset]!==undefined?SUB_RET[offset]:0.4;
                     const ps=effMonthlyTrials*trialConv;
-                    subRev+=ps*sr*arppu; subCost+=ps*sr*apiCost;
+                    subRev+=ps*sr*arppu;
                 }
             }
-            const totalRev=adRev+subRev-subCost;
-            proj.push({m,adRev,subRev,subCost,totalRev,spend:monthlySpend,profit:totalRev-monthlySpend});
+            const totalRev=adRev+subRev;
+            proj.push({m,adRev,subRev,totalRev,spend:monthlySpend,profit:totalRev-monthlySpend});
         }
         let cum=0; proj.forEach(p=>{cum+=p.profit;p.cumProfit=cum;});
         return proj;
@@ -1103,9 +1101,9 @@ function Financial({campaigns, settings}) {
         let adR=0,subR=0,subC=0;
         for(let m=0;m<months;m++){
             adR+=monthlyInstalls*(dd[m]||0)*arpdau;
-            if(subEnabled){const sr=SUB_RET[m]!==undefined?SUB_RET[m]:0.4;subR+=subsPerMonth*sr*arppu;subC+=subsPerMonth*sr*apiCost;}
+            if(subEnabled){const sr=SUB_RET[m]!==undefined?SUB_RET[m]:0.4;subR+=subsPerMonth*sr*arppu;}
         }
-        return (effSpend+subC)>0?(adR+subR)/(effSpend+subC)*100:0;
+        return effSpend>0?(adR+subR)/effSpend*100:0;
     };
 
     // ── What-if scenario comparison ──
@@ -1139,7 +1137,7 @@ function Financial({campaigns, settings}) {
         if (cashInst.current) cashInst.current.destroy();
         cashInst.current = new Chart(cashRef.current,{type:'bar',data:{labels:proj.map(p=>'M'+p.m),datasets:[
             {label:'Ad Revenue',data:proj.map(p=>+p.adRev.toFixed(0)),backgroundColor:'rgba(245,158,11,0.7)',stack:'rev'},
-            {label:'Sub Revenue (net)',data:proj.map(p=>+(p.subRev-p.subCost).toFixed(0)),backgroundColor:'rgba(139,92,246,0.7)',stack:'rev'},
+            {label:'Sub Revenue',data:proj.map(p=>+p.subRev.toFixed(0)),backgroundColor:'rgba(139,92,246,0.7)',stack:'rev'},
             {label:'Ad Spend',data:proj.map(p=>+(-p.spend).toFixed(0)),backgroundColor:'rgba(239,68,68,0.5)',stack:'cost'},
             {label:'Cumulative P&L',data:proj.map(p=>+p.cumProfit.toFixed(0)),type:'line',borderColor:'#3b82f6',borderWidth:2,pointRadius:0,tension:0.3,fill:false,yAxisID:'y'},
         ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{boxWidth:10,font:{size:10}}}},scales:{y:{ticks:{callback:v=>fmtM(v),font:{size:9}},stacked:true},x:{ticks:{font:{size:9},maxRotation:45}}}}});
@@ -1287,7 +1285,7 @@ function Financial({campaigns, settings}) {
                             e('tbody',null,proj.slice(0,12).map(p=>e('tr',{key:p.m,className:cls('border-b border-gray-50 hover:bg-gray-50',p.profit>=0?'':'')},
                                 e('td',{className:'px-2 py-1 font-medium text-gray-600'},'M'+p.m),
                                 e('td',{className:'px-2 py-1 text-right text-amber-600'},fmtM(p.adRev)),
-                                e('td',{className:'px-2 py-1 text-right text-violet-600'},subEnabled?fmtM(p.subRev-p.subCost):'—'),
+                                e('td',{className:'px-2 py-1 text-right text-violet-600'},subEnabled?fmtM(p.subRev):'—'),
                                 e('td',{className:'px-2 py-1 text-right font-semibold text-gray-700'},fmtM(p.totalRev)),
                                 e('td',{className:'px-2 py-1 text-right text-blue-600'},fmtM(p.spend)),
                                 e('td',{className:cls('px-2 py-1 text-right font-semibold',p.profit>=0?'text-emerald-600':'text-red-500')},fmtM(p.profit))
@@ -1451,7 +1449,6 @@ function Financial({campaigns, settings}) {
                         [
                             {label:'Trial → Paid',value:(trialConv*100).toFixed(0)+'%',note:'not available from ad data'},
                             {label:'ARPPU/mo',value:'$'+arppu.toFixed(2),note:'net of app store cut'},
-                            {label:'API Cost/Sub',value:'$'+apiCost.toFixed(2)+'/mo',note:'per active paying sub'},
                             {label:'Target CPA',value:fmtD(targetCPA),note:'set in Settings tab'},
                         ].map(r=>e('div',{key:r.label,className:'bg-gray-50 rounded-lg p-3 border border-gray-100'},
                             e('div',{className:'text-xs text-gray-400 mb-0.5'},r.label),
@@ -1501,7 +1498,7 @@ function Financial({campaigns, settings}) {
                     ),
                     e('div',null,
                         e('div',{style:{color:'#c084fc',fontWeight:'bold',marginBottom:'6px'}},'③ MODEL ASSUMPTIONS'),
-                        e('div',null,'Trial→Paid: ',e('span',{style:{color:'#fde047'}},(trialConv*100).toFixed(0)+'%'),'  ·  ARPPU: ',e('span',{style:{color:'#fde047'}},'$'+arppu.toFixed(2)),'  ·  API cost: ',e('span',{style:{color:'#fde047'}},'$'+apiCost.toFixed(2)+'/sub/mo')),
+                        e('div',null,'Trial→Paid: ',e('span',{style:{color:'#fde047'}},(trialConv*100).toFixed(0)+'%'),'  ·  ARPPU: ',e('span',{style:{color:'#fde047'}},'$'+arppu.toFixed(2))),
                     ),
                     e('div',null,
                         e('div',{style:{color:'#6ee7b7',fontWeight:'bold',marginBottom:'6px'}},'④ DERIVED at '+fmtM(monthlySpend)+'/mo'),
@@ -1534,7 +1531,7 @@ function Financial({campaigns, settings}) {
                         e('td',{className:'px-3 py-2 text-gray-600'},fmtK(monthlyInstalls)),
                         e('td',{className:'px-3 py-2 text-gray-600'},fmtK(monthlyTrials*trialConv)),
                         e('td',{className:'px-3 py-2 text-amber-600 font-medium'},fmtM(p.adRev)),
-                        e('td',{className:'px-3 py-2 text-violet-600'},subEnabled?fmtM(p.subRev-p.subCost):'—'),
+                        e('td',{className:'px-3 py-2 text-violet-600'},subEnabled?fmtM(p.subRev):'—'),
                         e('td',{className:'px-3 py-2 text-gray-700 font-semibold'},fmtM(p.totalRev)),
                         e('td',{className:'px-3 py-2 text-blue-600'},'−'+fmtM(p.spend)),
                         e('td',{className:cls('px-3 py-2 font-semibold',p.profit>=0?'text-emerald-600':'text-red-500')},fmtM(p.profit)),
