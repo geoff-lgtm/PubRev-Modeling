@@ -4,17 +4,65 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Spider Solitaire Modeling</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="https://cdn.tailwindcss.com" onerror="window.__cdnFail='tailwindcss'"></script>
+    <script crossorigin src="https://unpkg.com/react@18.2.0/umd/react.production.min.js" onerror="window.__cdnFail='react'"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js" onerror="window.__cdnFail='react-dom'"></script>
+    <script src="https://unpkg.com/@babel/standalone@7.23.6/babel.min.js" onerror="window.__cdnFail='babel-standalone'"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" onerror="window.__cdnFail='chart.js'"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js" onerror="window.__cdnFail='papaparse'"></script>
+    <script>
+    if (window.__cdnFail) {
+        document.addEventListener('DOMContentLoaded', function() {
+            var el = document.getElementById('loading');
+            if (el) {
+                el.innerHTML = '<div style="padding:2rem;font-family:monospace;color:#991b1b;background:#fef2f2;margin:2rem;border-radius:8px;border:1px solid #fecaca">' +
+                    '<b style="font-size:1.1rem">❌ CDN blocked: ' + window.__cdnFail + '</b><br><br>' +
+                    'This script failed to load from its CDN. Try disabling ad blockers or browser extensions, or open in an incognito window.</div>';
+            }
+        });
+    }
+    </script>
 </head>
 <body>
+<div id="loading" style="position:fixed;top:0;left:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center;background:#f9fafb;flex-direction:column;gap:12px;z-index:9999">
+  <div style="font-size:2rem">⏳</div>
+  <div style="font-weight:600;color:#374151">Loading Spider Solitaire Modeling...</div>
+  <div style="font-size:0.75rem;color:#9ca3af" id="loading-detail">Initialising</div>
+</div>
 <div id="root"></div>
-<script type="text/babel">
+<script>
+function showError(title, body) {
+  var el = document.getElementById('loading');
+  el.style.background = '#fff';
+  el.innerHTML =
+    '<div style="padding:2rem;max-width:700px;font-family:monospace;text-align:left">' +
+    '<div style="color:#ef4444;font-size:1.1rem;font-weight:bold;margin-bottom:1rem">❌ ' + title + '</div>' +
+    '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:1rem;color:#991b1b;word-break:break-all">' + body + '</div></div>';
+}
+window.onerror = function(msg, src, line, col, err) {
+  // "Script error." at line 0 = cross-origin CDN script failed
+  if (line === 0 && msg === 'Script error.') {
+    var which = window.__cdnFail ? ('<br><br><b>Failed script: ' + window.__cdnFail + '</b>') : '';
+    showError('CDN Script Failed to Load',
+      'A CDN dependency failed to load.' + which + '<br><br>' +
+      'Try: open in incognito mode, disable ad blockers, or check network.<br><br>' +
+      '<b>Required CDNs:</b><br>• unpkg.com (React + Babel)<br>• cdn.tailwindcss.com<br>• cdn.jsdelivr.net (Chart.js)<br>• cdnjs.cloudflare.com (PapaParse)');
+  } else {
+    showError('App Error',
+      '<div><b>Message:</b> ' + msg + '</div>' +
+      '<div><b>Line:</b> ' + line + ' Col: ' + col + '</div>' +
+      (src ? '<div><b>Source:</b> ' + src + '</div>' : '') +
+      (err && err.stack ? '<div style="margin-top:8px;font-size:0.7rem;opacity:0.7">' + err.stack.replace(/\n/g,'<br>') + '</div>' : ''));
+  }
+  return false;
+};
+// Also catch unhandled promise rejections
+window.onunhandledrejection = function(e) {
+  showError('Unhandled Promise Rejection', String(e.reason));
+};
+document.getElementById('loading-detail').textContent = 'Compiling JSX...';
+</script>
+<script type="text/babel" data-presets="react">
 const { useState, useEffect, useRef } = React;
 
 // Simple localStorage helpers
@@ -432,6 +480,8 @@ function App() {
             error: () => { alert('Error parsing ad revenue CSV'); setUploadingAdRev(false); }
         });
     };
+
+    const getMetrics = (campaign, s, days = null) => {
         if (!campaign?.dailyData) return null;
         let dates = Object.keys(campaign.dailyData).sort();
         if (!dates.length) return null;
@@ -805,7 +855,7 @@ function Dashboard({ campaigns, campaigns_raw, getMetrics, settings, snapshots, 
                 scales: {
                     x: { grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { maxTicksLimit: 10, font: { size: 10 } } },
                     y: { position: 'left', title: { display: true, text: 'CPA ($)', font: { size: 10 } }, beginAtZero: true, ticks: { callback: v => '
-</body>
+<\/body>
 <\/html>
 +v.toFixed(0) } },
                     y2: { position: 'right', title: { display: true, text: 'Trials', font: { size: 10 } }, beginAtZero: true, grid: { drawOnChartArea: false } }
@@ -850,11 +900,11 @@ function Dashboard({ campaigns, campaigns_raw, getMetrics, settings, snapshots, 
                     {
                         label: '30d Spend',
                         value: '
-</body>
+<\/body>
 <\/html>
  + t30.spend.toFixed(0),
                         sub: t30.clicks.toLocaleString() + ' clicks · CPI ' + (cpi30>0?'
-</body>
+<\/body>
 <\/html>
 +cpi30.toFixed(2):'—'),
                         note: null,
@@ -870,11 +920,11 @@ function Dashboard({ campaigns, campaigns_raw, getMetrics, settings, snapshots, 
                     {
                         label: '7d Avg CPA',
                         value: cpa7 > 0 ? '
-</body>
+<\/body>
 <\/html>
  + cpa7.toFixed(2) : '—',
                         sub: cpa30 > 0 ? 'vs 
-</body>
+<\/body>
 <\/html>
  + cpa30.toFixed(2) + ' (30d)' : '—',
                         note: cpaTrend !== null ? { val: (cpaTrend>0?'+':'')+cpaTrend.toFixed(0)+'%', good: cpaTrend < 0 } : null,
@@ -883,14 +933,14 @@ function Dashboard({ campaigns, campaigns_raw, getMetrics, settings, snapshots, 
                     {
                         label: 'Blended LTV/Install (12M)',
                         value: blendedLTV12 > 0 ? '
-</body>
+<\/body>
 <\/html>
  + blendedLTV12.toFixed(3) : '—',
                         sub: 'Ad 
-</body>
+<\/body>
 <\/html>
  + adLTV12.toFixed(3) + ' + Sub 
-</body>
+<\/body>
 <\/html>
  + subContrib12.toFixed(3),
                         note: unitEconGap !== null ? { val: unitEconGap <= 0 ? '✓ LTV > CPI' : Math.round(unitEconGap)+'% CPA above b/e', good: unitEconGap <= 0 } : null,
@@ -1004,7 +1054,7 @@ function Dashboard({ campaigns, campaigns_raw, getMetrics, settings, snapshots, 
                                     </div>
                                     <div className={'font-bold text-sm w-16 text-right ' + (m.cpa > 0 && m.cpa < cpa7 ? 'text-emerald-600' : 'text-red-500')}>
                                         {m.cpa > 0 ? '
-</body>
+<\/body>
 <\/html>
 +m.cpa.toFixed(2) : 'N/A'}
                                     </div>
@@ -1351,14 +1401,14 @@ function Campaigns({ campaigns, campaignMeta, campaigns_raw, settings, timeframe
                         <div className="grid grid-cols-6 gap-2">
                             {[
                                 { label: 'Spend', value: '
-</body>
+<\/body>
 <\/html>
  + m.spend.toFixed(0), sub: null },
                                 { label: 'Installs', value: (m.installs||0).toLocaleString(), sub: null },
                                 { label: 'Trials', value: (m.trials||0), sub: null },
                                 { label: 'Modeled Paid', value: Math.round(m.modeledPaidSubs||0), sub: 'trials×' + ((settings.trialConvRate||0.4)*100).toFixed(0)+'%' },
                                 { label: 'CPA', value: m.cpa > 0 ? '
-</body>
+<\/body>
 <\/html>
 +m.cpa.toFixed(2) : 'N/A', sub: null, highlight: m.cpa > 0 ? (m.cpa < (allMetrics.reduce((s,x)=>s+x.cpa,0)/allMetrics.filter(x=>x.cpa>0).length) ? 'text-emerald-600' : 'text-red-600') : '' },
                                 { label: 'Opt-In', value: m.optInRate > 0 ? (m.optInRate*100).toFixed(1)+'%' : 'N/A', sub: null },
@@ -1413,19 +1463,19 @@ function Campaigns({ campaigns, campaignMeta, campaigns_raw, settings, timeframe
                                 <div className="grid grid-cols-4 gap-3 text-xs">
                                     {[
                                         { label: 'Broad CPC', val: '
-</body>
+<\/body>
 <\/html>
 +broad.avgCPC.toFixed(2), color: '' },
                                         { label: 'Broad CPA', val: '
-</body>
+<\/body>
 <\/html>
 +broad.metrics.cpa.toFixed(2), color: '' },
                                         { label: 'Your CPC', val: '
-</body>
+<\/body>
 <\/html>
 +m.cpc.toFixed(2)+' ('+ ((m.cpc/broad.avgCPC-1)*100).toFixed(0)+'%)', color: m.cpc < broad.avgCPC ? 'text-orange-600' : 'text-emerald-600' },
                                         { label: 'Your CPA', val: '
-</body>
+<\/body>
 <\/html>
 +m.cpa.toFixed(2)+' ('+((m.cpa/broad.metrics.cpa-1)*100).toFixed(0)+'%)', color: m.cpa > broad.metrics.cpa ? 'text-orange-600' : 'text-emerald-600' },
                                     ].map(s => <div key={s.label}><div className="text-gray-500 mb-0.5">{s.label}</div><div className={'font-semibold '+s.color}>{s.val}</div></div>)}
@@ -1459,7 +1509,7 @@ function Campaigns({ campaigns, campaignMeta, campaigns_raw, settings, timeframe
                                 {/* Sliders */}
                                 {[
                                     { label: 'CPI', key: 'cpi', val: wifCPI, set: setWhatIfCPI, cur: m.cpi||1.0, min: 0.10, max: 5, step: 0.05, fmt: v => '
-</body>
+<\/body>
 <\/html>
 +v.toFixed(2) },
                                     { label: 'Opt-In Rate', key: 'opt', val: wifOptIn, set: setWhatIfOptIn, cur: (m.optInRate||0.37)*100, min: 1, max: 80, step: 1, fmt: v => v.toFixed(0)+'%' },
@@ -1515,19 +1565,19 @@ function Campaigns({ campaigns, campaignMeta, campaigns_raw, settings, timeframe
                                                         {[
                                                             { label: 'Monthly paid subs', val: Math.round(cur.newSubsPerMonth) },
                                                             { label: 'CPA', val: '
-</body>
+<\/body>
 <\/html>
 +cur.cpa.toFixed(2) },
                                                             { label: 'Payback month', val: cur.paybackMonth ? 'Mo. '+cur.paybackMonth : '>24mo' },
                                                             { label: 'Break-even month', val: cur.breakEvenMonth ? 'Mo. '+cur.breakEvenMonth : '>24mo' },
                                                             { label: 'Peak cash deficit', val: '
-</body>
+<\/body>
 <\/html>
 +Math.abs(cur.peakDeficit).toFixed(0) },
                                                             { label: '12M ROAS', val: (cur.roas12*100).toFixed(0)+'%' },
                                                             { label: '24M ROAS', val: (cur.roas24*100).toFixed(0)+'%' },
                                                             { label: 'M24 MRR', val: '
-</body>
+<\/body>
 <\/html>
 +cur.m24mrr.toFixed(0) },
                                                         ].map(r => (
@@ -1546,19 +1596,19 @@ function Campaigns({ campaigns, campaignMeta, campaigns_raw, settings, timeframe
                                                         {[
                                                             { label: 'Monthly paid subs', cv: cur.newSubsPerMonth, wv: wif.newSubsPerMonth, fmt: v => Math.round(v), better: (c,w) => w > c },
                                                             { label: 'CPA', cv: cur.cpa, wv: wif.cpa, fmt: v => '
-</body>
+<\/body>
 <\/html>
 +v.toFixed(2), better: (c,w) => w < c },
                                                             { label: 'Payback month', cv: cur.paybackMonth||99, wv: wif.paybackMonth||99, fmt: v => v >= 99 ? '>24mo' : 'Mo. '+v, better: (c,w) => w < c },
                                                             { label: 'Break-even month', cv: cur.breakEvenMonth||99, wv: wif.breakEvenMonth||99, fmt: v => v >= 99 ? '>24mo' : 'Mo. '+v, better: (c,w) => w < c },
                                                             { label: 'Peak cash deficit', cv: Math.abs(cur.peakDeficit), wv: Math.abs(wif.peakDeficit), fmt: v => '
-</body>
+<\/body>
 <\/html>
 +v.toFixed(0), better: (c,w) => w < c },
                                                             { label: '12M ROAS', cv: cur.roas12, wv: wif.roas12, fmt: v => (v*100).toFixed(0)+'%', better: (c,w) => w > c },
                                                             { label: '24M ROAS', cv: cur.roas24, wv: wif.roas24, fmt: v => (v*100).toFixed(0)+'%', better: (c,w) => w > c },
                                                             { label: 'M24 MRR', cv: cur.m24mrr, wv: wif.m24mrr, fmt: v => '
-</body>
+<\/body>
 <\/html>
 +v.toFixed(0), better: (c,w) => w > c },
                                                         ].map(r => {
@@ -1925,11 +1975,11 @@ function AdRevenue({ adRevenueData, settings }) {
     const ecpm7   = last7.length ? last7.reduce((s,r)=>s+r.ecpm,0)/last7.length : avgEcpm;
 
     const fmt2 = v => '
-</body>
+<\/body>
 <\/html>
  + v.toFixed(2);
     const fmt4 = v => '
-</body>
+<\/body>
 <\/html>
  + v.toFixed(4);
 
@@ -2261,7 +2311,7 @@ function Retention() {
                 responsive: true, maintainAspectRatio: false,
                 scales: {
                     y: { beginAtZero: true, ticks: { callback: v => '
-</body>
+<\/body>
 <\/html>
  + v.toFixed(3), font: { size: 10 } }, grid: { color: 'rgba(0,0,0,0.05)' } },
                     x: { ticks: { font: { size: 10 } } }
@@ -2627,15 +2677,15 @@ function Financial({ campaigns, settings }) {
     const isOptimize = roas12 >= 0.7 && (!paybackMonth || paybackMonth.month > 12);
 
     const fmtK = (n) => { const abs=Math.abs(n); const sign=n<0?'-':''; return abs>=1000?sign+'
-</body>
+<\/body>
 <\/html>
 +(abs/1000).toFixed(1)+'k':sign+'
-</body>
+<\/body>
 <\/html>
 +abs.toFixed(0); };
     const fmtN = (n) => n>=1000?(n/1000).toFixed(1)+'k':Math.round(n).toString();
     const fmt2 = (n) => '
-</body>
+<\/body>
 <\/html>
 +n.toFixed(2);
     const fmtM = (n) => n>=1000000?(n/1000000).toFixed(2)+'M':n>=1000?(n/1000).toFixed(1)+'k':Math.round(n).toString();
@@ -2663,7 +2713,7 @@ function Financial({ campaigns, settings }) {
                     interaction:{mode:'index',intersect:false},
                     plugins:{ legend:{position:'top',labels:{font:{size:11},boxWidth:12}}, tooltip:{callbacks:{label:ctx=>` ${ctx.dataset.label}: ${ctx.parsed.y.toFixed(3)}`}} },
                     scales:{ y:{ticks:{callback:v=>'
-</body>
+<\/body>
 <\/html>
 +v.toFixed(2)},title:{display:true,text:'$ per install',font:{size:10}}}, x:{grid:{color:'rgba(0,0,0,0.04)'}} }
                 }
@@ -2796,20 +2846,20 @@ function Financial({ campaigns, settings }) {
             <div className="grid grid-cols-5 gap-3">
                 {[
                     { label: 'ARPDAU', value: '
-</body>
+<\/body>
 <\/html>
 +MODEL.arpdau.toFixed(4), sub: 'ad rev / DAU / day', bg:'bg-amber-50', border:'border-amber-200', text:'text-amber-800', sub_c:'text-amber-500', big:false },
                     { label: 'ARPMAU', value: '
-</body>
+<\/body>
 <\/html>
 +arpmau.toFixed(3), sub: 'ARPDAU × DAU/MAU × 30', bg:'bg-amber-50', border:'border-amber-200', text:'text-amber-800', sub_c:'text-amber-500', big:false },
                     { label: 'DAU @ M12', value: fmtM(proj[11]?.dau||0), sub: (MODEL.dauMauRatio*100).toFixed(0)+'% of MAU '+fmtM(proj[11]?.mau||0), bg:'bg-orange-50', border:'border-orange-200', text:'text-orange-800', sub_c:'text-orange-500', big:false },
                     { label: 'Ad LTV/Install (12M)', value: '
-</body>
+<\/body>
 <\/html>
 +(adLTV12).toFixed(2), sub: 'cumul. ad rev per install', bg:'bg-yellow-50', border:'border-yellow-300', text:'text-yellow-800', sub_c:'text-yellow-600', big:true },
                     { label: 'Blended LTV/Install (12M)', value: '
-</body>
+<\/body>
 <\/html>
 +(blendedLTV12).toFixed(2), sub: 'ad + sub revenue combined', bg:'bg-indigo-50', border:'border-indigo-300', text:'text-indigo-800', sub_c:'text-indigo-500', big:true },
                 ].map((item,i) => (
@@ -2872,7 +2922,7 @@ function Financial({ campaigns, settings }) {
                         { label:'M12 Total Revenue', value:fmtK(proj[11]?.totalRev||0)+'/mo', sub:'combined' },
                         { label:'M12 Net CF', value:fmtK(proj[11]?.netCF||0)+'/mo', sub:(proj[11]?.margin||0).toFixed(0)+'% margin' },
                         { label:'24M Blended LTV', value:'
-</body>
+<\/body>
 <\/html>
 +blendedLTV24.toFixed(2)+'/install', sub:'vs CPI '+fmt2(cpi) },
                         { label:'LTV:CPI Ratio', value:(blendedLTV24/Math.max(cpi,0.01)).toFixed(1)+'×', sub:'payback multiple' },
@@ -2906,19 +2956,19 @@ function Financial({ campaigns, settings }) {
             <div className="mt-3 grid grid-cols-4 gap-3">
                 {[
                     { label:'Ad LTV 3M', value:'
-</body>
+<\/body>
 <\/html>
 +adLTVperInstall(3).toFixed(3) },
                     { label:'Ad LTV 6M', value:'
-</body>
+<\/body>
 <\/html>
 +adLTVperInstall(6).toFixed(3) },
                     { label:'Ad LTV 12M', value:'
-</body>
+<\/body>
 <\/html>
 +adLTV12.toFixed(3) },
                     { label:'Ad LTV 24M', value:'
-</body>
+<\/body>
 <\/html>
 +adLTV24.toFixed(3) },
                 ].map((item,i) => (
@@ -3140,6 +3190,8 @@ function Financial({ campaigns, settings }) {
 }
 
 
+document.getElementById("loading").style.display = "none";
+document.getElementById("loading").style.display = "none";
 ReactDOM.render(<App />, document.getElementById('root'));
 </script>
 </body>
