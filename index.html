@@ -840,7 +840,6 @@ function Financial({campaigns, settings}) {
 
     useEffect(()=>{ if(campaigns.length>0&&selectedCampaigns.length===0) setSelectedCampaigns(campaigns.map(c=>c.name)); },[campaigns]);
 
-    const DAU_RET = [1.0,0.01340,0.00762,0.00434,0.00247,0.00140,0.00080,0.00045,0.00026,0.00015,0.00008,0.00005,0.00003,0.00002,0.00001,0.00001,0.00001,0.00001,0.00001,0.00001,0.00001,0.00001,0.00001,0.00001];
     const SUB_RET = [1.0,0.676,0.587,0.531,0.494,0.474,0.460,0.449,0.444,0.438,0.431,0.404,0.400,0.400,0.400,0.400,0.400,0.400,0.400,0.400,0.400,0.400,0.400,0.400];
 
     const selCamps = campaigns.filter(c=>selectedCampaigns.includes(c.name));
@@ -860,27 +859,46 @@ function Financial({campaigns, settings}) {
     const arppu = settings.arppu||2.70;
     const apiCost = settings.apiCostPerSub||1.00;
     const subEnabled = settings.subEnabled!==false;
-    const arpmau = arpdau*30;
 
-    // Monthly projections
+    // Per-install LTV by month: integrate daily DAU retention × ARPDAU
+    // piecewise uses observed D1-D75, tail fit beyond
+    const A_FIT=0.0236, K_FIT=0.01881;
+    const tailFitF = d => A_FIT*Math.exp(-K_FIT*d);
+    const OBS_RET = [[0,1.0],[1,0.1034],[2,0.0546],[3,0.0430],[4,0.0351],[5,0.0333],[7,0.0333],[10,0.0303],[14,0.0198],[21,0.0187],[30,0.0131],[45,0.0107],[75,0.0054]];
+    const retAtDay = d => {
+        if(d===0) return 1.0;
+        for(let i=0;i<OBS_RET.length-1;i++){
+            const [d0,r0]=OBS_RET[i],[d1,r1]=OBS_RET[i+1];
+            if(d>=d0&&d<=d1) return r0+(d-d0)/(d1-d0)*(r1-r0);
+        }
+        return tailFitF(d);
+    };
+    // dauDaysPerInstall[m] = DAU-days generated in month m by 1 install from month 0
+    const dauDaysPerInstall = [];
+    for(let m=0;m<MONTHS+1;m++){
+        let dd=0;
+        for(let d=m*30;d<(m+1)*30;d++) dd+=retAtDay(d);
+        dauDaysPerInstall.push(dd);
+    }
+
+    // Monthly projections: sum across all cohorts acquired up to month m
     const proj = [];
     for (let m=0;m<MONTHS;m++) {
         let adRev=0, subRev=0, subCost=0;
         for (let cohortM=0;cohortM<=m;cohortM++) {
-            const offset=m-cohortM;
-            const installs=monthlyInstalls;
-            const dauRet=DAU_RET[offset]!==undefined?DAU_RET[offset]:DAU_RET[DAU_RET.length-1];
-            adRev+=installs*dauRet*arpdau*30;
+            const offset=m-cohortM;  // how many months since this cohort was acquired
+            const dd=dauDaysPerInstall[offset]||0;
+            // ad revenue: installs × DAU-days in this month × ARPDAU
+            adRev+=monthlyInstalls*dd*arpdau;
             if (subEnabled) {
                 const subRet=SUB_RET[offset]!==undefined?SUB_RET[offset]:SUB_RET[SUB_RET.length-1];
-                const monthlyPaidSubs=monthlyTrials*trialConv;
-                subRev+=monthlyPaidSubs*subRet*arppu;
-                subCost+=monthlyPaidSubs*subRet*apiCost;
+                const paidSubs=monthlyTrials*trialConv;  // paid subs from this cohort
+                subRev+=paidSubs*subRet*arppu;
+                subCost+=paidSubs*subRet*apiCost;
             }
         }
         const totalRev=adRev+subRev-subCost;
-        const dau=monthlyInstalls*(DAU_RET[1]||0.013)*30;
-        proj.push({m,adRev,subRev,subCost,totalRev,spend:monthlySpend,profit:totalRev-monthlySpend,dau:Math.round(dau)});
+        proj.push({m,adRev,subRev,subCost,totalRev,spend:monthlySpend,profit:totalRev-monthlySpend});
     }
 
     const breakEvenMonth = proj.findIndex((p,i)=>i>0&&p.profit>0);
@@ -888,12 +906,12 @@ function Financial({campaigns, settings}) {
     const cumulRev12 = proj.slice(0,12).reduce((s,p)=>s+p.totalRev,0);
     const cumulSpend12 = proj.slice(0,12).reduce((s,p)=>s+p.spend,0);
 
-    // LTV curve
+    // LTV curve: per-install cumulative LTV using integrated daily retention
     const ltvByMonth = [];
     let cumLTV=0;
     for (let m=0;m<=12;m++) {
-        const dauRet=DAU_RET[m]!==undefined?DAU_RET[m]:DAU_RET[DAU_RET.length-1];
-        const monthlyAdRev=dauRet*arpdau*30;
+        const dd=dauDaysPerInstall[m]||0;
+        const monthlyAdRev=dd*arpdau;  // $ per install in month m
         const subLTV=subEnabled&&m<SUB_RET.length?SUB_RET[m]*trialConv*arppu:0;
         cumLTV+=monthlyAdRev+subLTV;
         ltvByMonth.push({m,cumLTV,adComponent:monthlyAdRev,subComponent:subLTV});
