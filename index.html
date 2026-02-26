@@ -748,7 +748,7 @@ function Settings({settings, updateSettings}) {
 }
 
 // ── Upload ────────────────────────────────────────────────────────────────────
-function Upload({handleUpload, uploading, handleInstallUpload, uploadingInstalls, handleAdRevUpload, uploadingAdRev}) {
+function Upload({handleUpload, uploading, handleInstallUpload, uploadingInstalls, handleAdRevUpload, uploadingAdRev, handleRetentionUpload, retentionCurve}) {
     const card = (icon, title, sub, btnLabel, btnCls, inputId, onChange, disabled, details) =>
         e('div', {className:'border-2 border-dashed border-gray-200 rounded-xl p-5 flex flex-col gap-4 hover:border-gray-300 transition-colors'},
             e('div', {className:'text-center'},
