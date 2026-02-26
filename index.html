@@ -94,6 +94,8 @@ function App() {
     const [uploadingAdRev, setUploadingAdRev] = useState(false);
     const [timeframes, setTimeframes] = useState({});
     const [hasRealData, setHasRealData] = useState(!!store.get('nw-has-real-data'));
+    const [retentionCurve, setRetentionCurve] = useState(store.get('nw-retention-curve')||null);
+    // retentionCurve = {obs:[[day,ret],...], A, K, d1, uploadedAt, cohortCount}
 
     useEffect(() => {
         const c = store.get('nw-campaigns'); if (c) setCampaigns(c);  // real data only, no dummy merge
@@ -103,9 +105,62 @@ function App() {
         const s = store.get('nw-snapshots'); if (s) setSnapshots(s);
         const l = store.get('nw-changelog'); if (l) setChangelog(l);
         const st = store.get('nw-settings'); if (st) setSettings(st);
+        const rc = store.get('nw-retention-curve'); if (rc) setRetentionCurve(rc);
     }, []);
 
     const save = (k,v) => store.set(k,v);
+
+    // ── Retention CSV upload handler ──────────────────────────────────────────
+    const handleRetentionUpload = (e) => {
+        const file = e.target.files[0]; if (!file) return;
+        Papa.parse(file, { header:true, complete:(results)=>{
+            // Expected format: Install Day, Installs, Day 1, Day 2, ... Day N, Country Filter
+            const rows = results.data.filter(r=>{
+                const installs = parseFloat(r['Installs']||r['installs']||0);
+                return installs >= 20;
+            });
+            if (!rows.length) { alert('No cohorts with ≥20 installs found.'); return; }
+
+            // Find day columns
+            const headers = Object.keys(rows[0]);
+            const dayCols = headers.filter(h=>/^Day \d+$/i.test(h.trim()));
+            if (!dayCols.length) { alert('No "Day N" columns found. Expected format: Day 1, Day 2...'); return; }
+
+            // Compute median retention per day (exclude 0s and >50%)
+            const medians = {};
+            dayCols.forEach(col=>{
+                const day = parseInt(col.replace(/day /i,'').trim());
+                const vals = rows.map(r=>parseFloat(r[col])).filter(v=>!isNaN(v)&&v>0&&v<0.5);
+                if (vals.length >= 2) {
+                    vals.sort((a,b)=>a-b);
+                    const mid = Math.floor(vals.length/2);
+                    medians[day] = vals.length%2===0 ? (vals[mid-1]+vals[mid])/2 : vals[mid];
+                }
+            });
+
+            // Build obs array [[day, ret], ...] including D0=1.0
+            const obs = [[0,1.0], ...Object.entries(medians).map(([d,r])=>[+d,r]).sort((a,b)=>a[0]-b[0])];
+
+            // Fit exponential tail to last 3 reliable points (≥3 cohorts)
+            const reliable = obs.filter(([d])=>d>0).slice(-4);
+            if (reliable.length >= 2) {
+                const pts = reliable.slice(-3);
+                const ds=pts.map(p=>p[0]), rs=pts.map(p=>p[1]);
+                const lnrs=rs.map(r=>Math.log(r));
+                const n=ds.length, sd=ds.reduce((a,b)=>a+b,0), slnr=lnrs.reduce((a,b)=>a+b,0);
+                const sd2=ds.reduce((s,d)=>s+d*d,0), sdlnr=ds.reduce((s,d,i)=>s+d*lnrs[i],0);
+                const K=-(n*sdlnr-sd*slnr)/(n*sd2-sd*sd);
+                const A=Math.exp((slnr+K*sd)/n);
+                const d1 = medians[1]||obs[1]?.[1]||0;
+                const curve = { obs, A:+A.toFixed(4), K:+K.toFixed(5), d1:+d1.toFixed(5), cohortCount:rows.length, uploadedAt:new Date().toISOString().split('T')[0] };
+                setRetentionCurve(curve);
+                store.set('nw-retention-curve', curve);
+                alert('✅ Retention curve updated! D1='+( d1*100).toFixed(1)+'%, '+rows.length+' cohorts fitted.');
+            } else {
+                alert('Not enough day columns to fit a curve. Need at least 2 day points.');
+            }
+        }});
+    };
 
     // ── metrics ───────────────────────────────────────────────────────────────
     function getMetrics(campaign, s, days=null) {
@@ -294,12 +349,12 @@ function App() {
                 e('div', {className:'p-6'},
                     tab==='dashboard' && e(Dashboard, {campaigns:campaignList, campaigns_raw:campaigns, getMetrics, settings, snapshots, totals, overallCPA, setTab}),
                     tab==='campaigns' && e(Campaigns, {campaigns:campaignList, campaignMeta, campaigns_raw:campaigns, settings, timeframes, setTimeframes, getMetrics, getRec, getBroadLearnings, updateMeta}),
-                    tab==='financial' && e(Financial, {campaigns:campaignList, settings}),
+                    tab==='financial' && e(Financial, {campaigns:campaignList, settings, retentionCurve}),
                     tab==='adrevenue' && e(AdRevenue, {adRevenueData, settings}),
-                    tab==='retention' && e(Retention, null),
+                    tab==='retention' && e(Retention, {settings, retentionCurve}),
                     tab==='history' && e(History, {campaigns:campaignList, snapshots, changelog}),
                     tab==='settings' && e(Settings, {settings, updateSettings}),
-                    tab==='upload' && e(Upload, {handleUpload, uploading, handleInstallUpload, uploadingInstalls, handleAdRevUpload, uploadingAdRev})
+                    tab==='upload' && e(Upload, {handleUpload, uploading, handleInstallUpload, uploadingInstalls, handleAdRevUpload, uploadingAdRev, handleRetentionUpload, retentionCurve})
                 )
             )
         )
@@ -711,7 +766,7 @@ function Upload({handleUpload, uploading, handleInstallUpload, uploadingInstalls
             e('h2', {className:'text-xl font-semibold'}, 'Import Data'),
             e('p', {className:'text-sm text-gray-500 mt-1'}, 'Three data streams — all append-only. Re-upload anytime to refresh.')
         ),
-        e('div', {className:'grid grid-cols-3 gap-4'},
+        e('div', {className:'grid grid-cols-4 gap-4'},
             card('📣','User Acquisition','Google · Meta · ASA · TikTok','+ Upload UA CSV','bg-blue-600 text-white hover:bg-blue-700','fu-ua',handleUpload,uploading,[
                 e('div',{key:'g'},'Google Ads: Date, Cost, Installs'),
                 e('div',{key:'s'},'Standard: Campaign Name, Date, Amount Spent'),
@@ -725,6 +780,13 @@ function Upload({handleUpload, uploading, handleInstallUpload, uploadingInstalls
             card('📲','Install & MAU Data','AppsFlyer · Adjust · Branch','+ Upload Install CSV','bg-violet-600 text-white hover:bg-violet-700','fu-inst',handleInstallUpload,uploadingInstalls,[
                 e('div',{key:'r'},'Required: Date, Installs'),
                 e('div',{key:'o'},'Optional: Organic Installs, MAU, DAU'),
+            ]),
+            card('📉','Cohort Retention',retentionCurve?'✅ Loaded · '+retentionCurve.cohortCount+' cohorts · D1='+( retentionCurve.d1*100).toFixed(1)+'%':'Updates LTV curve + Financial model','+ Upload Cohort CSV','bg-emerald-600 text-white hover:bg-emerald-700','fu-ret',handleRetentionUpload,false,[
+                e('div',{key:'r'},'Required: Install Day, Installs, Day 1, Day 2...'),
+                e('div',{key:'f'},'Format: AppLovin/AppsFlyer cohort export'),
+                retentionCurve
+                    ? e('div',{key:'s',className:'text-emerald-600'},'✓ Last upload: '+retentionCurve.uploadedAt)
+                    : e('div',{key:'s',className:'text-amber-600'},'⚠ Using hardcoded baseline curve'),
             ])
         ),
         e('div', {className:'bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs text-gray-500'},
@@ -844,17 +906,19 @@ function AdRevenue({adRevenueData, settings}) {
 }
 
 // ── Retention ─────────────────────────────────────────────────────────────────
-function Retention() {
+function Retention({settings, retentionCurve}) {
     const chartRef = useRef(null), chartInst = useRef(null);
     const ltvRef = useRef(null), ltvInst = useRef(null);
 
-    const OBSERVED = [
-        {day:1,ret:0.15996},{day:2,ret:0.07865},{day:3,ret:0.05923},{day:4,ret:0.05000},{day:5,ret:0.04255},
-        {day:6,ret:0.05112},{day:7,ret:0.03647},{day:10,ret:0.03077},{day:14,ret:0.03279},
-        {day:18,ret:0.02857},{day:21,ret:0.01713},
-        {day:30,ret:0.0131},{day:45,ret:0.0107},{day:75,ret:0.0054},
-    ];
-    const A=0.0259, K=0.02075; // half-life 33.4d · blended: new D1-D21 + old D30-D75 anchors
+    // Use uploaded curve if available, else hardcoded baseline
+    const _baseObs = [{day:1,ret:0.15996},{day:2,ret:0.07865},{day:3,ret:0.05923},{day:4,ret:0.05000},{day:5,ret:0.04255},{day:6,ret:0.05112},{day:7,ret:0.03647},{day:10,ret:0.03077},{day:14,ret:0.03279},{day:18,ret:0.02857},{day:21,ret:0.01713},{day:30,ret:0.0131},{day:45,ret:0.0107},{day:75,ret:0.0054}];
+    const OBSERVED = retentionCurve
+        ? retentionCurve.obs.filter(([d])=>d>0).map(([day,ret])=>({day,ret}))
+        : _baseObs;
+    const A = retentionCurve ? retentionCurve.A : 0.0259;
+    const K = retentionCurve ? retentionCurve.K : 0.02075;
+    const d1Ret = retentionCurve ? retentionCurve.d1 : 0.15996;
+    const curveSource = retentionCurve ? retentionCurve.cohortCount+' cohorts · uploaded '+retentionCurve.uploadedAt : '85 cohorts · hardcoded baseline';
     const tailFit = d => A*Math.exp(-K*d);
     const piecewise = d => {
         if (d===0) return 1.0;
@@ -869,6 +933,11 @@ function Retention() {
         }
         return tailFit(d);
     };
+
+    const ARPDAU_RET = settings.arpdau||0.157;
+
+    // D1 tally component rendered in header
+    const d1Display = (d1Ret*100).toFixed(2)+'%';
 
     const EOM = [
         {m:0,d:1.0,ret:1.00000,type:'install'},
@@ -916,13 +985,53 @@ function Retention() {
     },[]);
 
     const fmtPct = v => (v*100).toFixed(v<0.001?4:v<0.01?3:2)+'%';
-    const benchmarks = [{l:'D1',v:fmtPct(0.15996),badge:'OBSERVED',cls:'bg-emerald-50 text-emerald-700 border-emerald-200'},{l:'D7',v:fmtPct(0.03647),badge:'OBSERVED',cls:'bg-emerald-50 text-emerald-700 border-emerald-200'},{l:'D14',v:fmtPct(0.03279),badge:'OBSERVED',cls:'bg-emerald-50 text-emerald-700 border-emerald-200'},{l:'D21',v:fmtPct(0.01713),badge:'OBSERVED',cls:'bg-emerald-50 text-emerald-700 border-emerald-200'},{l:'D30',v:fmtPct(0.0131),badge:'OBSERVED (old)',cls:'bg-blue-50 text-blue-700 border-blue-200'},{l:'Tail half-life',v:'33 days',badge:'FITTED',cls:'bg-amber-50 text-amber-700 border-amber-200'}];
+    const getObs = (day) => OBSERVED.find(o=>o.day===day)?.ret;
+    const halfLife = (Math.log(2)/K).toFixed(1);
+    const benchmarks = [
+        {l:'D1',v:fmtPct(d1Ret),badge:'OBSERVED',cls:'bg-emerald-50 text-emerald-700 border-emerald-200'},
+        {l:'D7',v:fmtPct(getObs(7)||0.03647),badge:'OBSERVED',cls:'bg-emerald-50 text-emerald-700 border-emerald-200'},
+        {l:'D14',v:fmtPct(getObs(14)||piecewise(14)),badge:'OBSERVED',cls:'bg-emerald-50 text-emerald-700 border-emerald-200'},
+        {l:'D30',v:fmtPct(getObs(30)||piecewise(30)),badge:getObs(30)?'OBSERVED':'FITTED',cls:getObs(30)?'bg-emerald-50 text-emerald-700 border-emerald-200':'bg-amber-50 text-amber-700 border-amber-200'},
+        {l:'D75',v:fmtPct(getObs(75)||piecewise(75)),badge:getObs(75)?'OBSERVED':'FITTED',cls:getObs(75)?'bg-emerald-50 text-emerald-700 border-emerald-200':'bg-amber-50 text-amber-700 border-amber-200'},
+        {l:'Half-life',v:halfLife+'d',badge:'FITTED',cls:'bg-amber-50 text-amber-700 border-amber-200'},
+    ];
 
     return e('div', {className:'space-y-6'},
+        // ── D1 tally + curve status bar ──
+        e('div',{className:'flex items-center justify-between bg-white border border-gray-200 rounded-xl px-5 py-3'},
+            e('div',{className:'flex items-center gap-5'},
+                e('div',null,
+                    e('div',{className:'text-xs text-gray-400 uppercase tracking-wide font-semibold mb-0.5'},'D1 Retention'),
+                    e('div',{className:'text-3xl font-black text-blue-600 tabular-nums'},fmtPct(d1Ret))
+                ),
+                e('div',{className:'w-px h-10 bg-gray-200'}),
+                e('div',{className:'flex gap-4 text-sm'},
+                    ['D7','D30','D75'].map(label=>{
+                        const day=parseInt(label.slice(1));
+                        const val=getObs(day)||piecewise(day);
+                        return e('div',{key:label},
+                            e('div',{className:'text-xs text-gray-400'},label),
+                            e('div',{className:'font-bold text-gray-700'},fmtPct(val))
+                        );
+                    })
+                ),
+                e('div',{className:'w-px h-10 bg-gray-200'}),
+                e('div',null,
+                    e('div',{className:'text-xs text-gray-400 uppercase tracking-wide font-semibold mb-0.5'},'12M Ad LTV'),
+                    e('div',{className:'text-xl font-bold text-amber-600'},'$'+cumulativeLTV[12].ltv.toFixed(3))
+                )
+            ),
+            e('div',{className:'text-right'},
+                e('div',{className:'text-xs text-gray-500 mb-1'},curveSource),
+                retentionCurve
+                    ? e('button',{onClick:()=>{if(confirm('Clear uploaded retention curve and revert to baseline?')){setRetentionCurve&&setRetentionCurve(null);store.set('nw-retention-curve',null);}},className:'text-xs text-red-400 hover:text-red-600'},'✕ Clear upload')
+                    : e('div',{className:'text-xs text-amber-500'},'Upload CSV to update curve')
+            )
+        ),
         e('div', {className:'flex items-start justify-between'},
             e('div', null,
                 e('h2',{className:'text-xl font-semibold'},'DAU Retention Curve'),
-                e('p',{className:'text-sm text-gray-500 mt-0.5'},'85 cohorts · Dec 2025 – Feb 2026 · US · Spider Solitaire Android')
+                e('p',{className:'text-sm text-gray-500 mt-0.5'},curveSource+' · US · Spider Solitaire Android')
             ),
             e('div', {className:'bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-xs text-blue-700 text-right'},
                 e('div',{className:'font-semibold'},'12M Ad LTV/install'),
@@ -977,7 +1086,7 @@ function Retention() {
 }
 
 // ── Financial ─────────────────────────────────────────────────────────────────
-function Financial({campaigns, settings}) {
+function Financial({campaigns, settings, retentionCurve}) {
     const ltvRef = useRef(null), ltvInst = useRef(null);
     const cashRef = useRef(null), cashInst = useRef(null);
     const [selectedCampaigns, setSelectedCampaigns] = useState([]);
@@ -992,9 +1101,10 @@ function Financial({campaigns, settings}) {
 
     useEffect(()=>{ if(campaigns.length>0&&selectedCampaigns.length===0) setSelectedCampaigns(campaigns.map(c=>c.name)); },[campaigns]);
 
-    // ── Retention curve (blended: new D1-D21 + old D30-D75) ──
-    const A_FIT=0.0259, K_FIT=0.02075;
-    const OBS_RET=[[0,1.0],[1,0.15996],[2,0.07865],[3,0.05923],[4,0.05000],[5,0.04255],[6,0.05112],[7,0.03647],[10,0.03077],[14,0.03279],[18,0.02857],[21,0.01713],[30,0.0131],[45,0.0107],[75,0.0054]];
+    // ── Retention curve — use uploaded curve if available, else hardcoded baseline ──
+    const A_FIT = retentionCurve ? retentionCurve.A : 0.0259;
+    const K_FIT = retentionCurve ? retentionCurve.K : 0.02075;
+    const OBS_RET = retentionCurve ? retentionCurve.obs : [[0,1.0],[1,0.15996],[2,0.07865],[3,0.05923],[4,0.05000],[5,0.04255],[6,0.05112],[7,0.03647],[10,0.03077],[14,0.03279],[18,0.02857],[21,0.01713],[30,0.0131],[45,0.0107],[75,0.0054]];
     const retAtDay = (d, retBoostFrac=0) => {
         // retBoostFrac shifts early retention proportionally
         let base;
@@ -1091,9 +1201,9 @@ function Financial({campaigns, settings}) {
     const isOptimize = roas12>=0.7 && !isScalable;
 
     // ── Scenario table CPAs ──
-    // CPI scenario rows anchored to actual CPI
+    // CPI scenario rows: current CPI + what happens if you improve it
     const scenarioCPIs = cpi>0
-        ? [cpi*2, cpi*1.5, cpi*1.25, cpi, cpi*0.75, cpi*0.5, cpi*0.33]
+        ? [cpi*1.25, cpi, cpi*0.85, cpi*0.7, cpi*0.55, cpi*0.4]
             .map(v=>+v.toFixed(2)).filter((v,i,a)=>a.indexOf(v)===i)
         : [3.00,2.00,1.50,1.00,0.75,0.50];
 
