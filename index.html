@@ -114,20 +114,15 @@ function App() {
     const handleRetentionUpload = (e) => {
         const file = e.target.files[0]; if (!file) return;
         Papa.parse(file, { header:true, complete:(results)=>{
-            // Expected format: Install Day, Installs, Day 1, Day 2, ... Day N, Country Filter
-            const rows = results.data.filter(r=>{
-                const installs = parseFloat(r['Installs']||r['installs']||0);
-                return installs >= 20;
-            });
+            const rows = results.data.filter(r=>( parseFloat(r['Installs']||r['installs']||0) ) >= 20);
             if (!rows.length) { alert('No cohorts with ≥20 installs found.'); return; }
 
-            // Find day columns
             const headers = Object.keys(rows[0]);
             const dayCols = headers.filter(h=>/^Day \d+$/i.test(h.trim()));
-            if (!dayCols.length) { alert('No "Day N" columns found. Expected format: Day 1, Day 2...'); return; }
+            if (!dayCols.length) { alert('No "Day N" columns found.'); return; }
 
-            // Compute median retention per day (exclude 0s and >50%)
-            const medians = {};
+            // Compute median + count per day (exclude 0s and >50%)
+            const medians = {}, nCounts = {};
             dayCols.forEach(col=>{
                 const day = parseInt(col.replace(/day /i,'').trim());
                 const vals = rows.map(r=>parseFloat(r[col])).filter(v=>!isNaN(v)&&v>0&&v<0.5);
@@ -135,30 +130,69 @@ function App() {
                     vals.sort((a,b)=>a-b);
                     const mid = Math.floor(vals.length/2);
                     medians[day] = vals.length%2===0 ? (vals[mid-1]+vals[mid])/2 : vals[mid];
+                    nCounts[day] = vals.length;
                 }
             });
 
-            // Build obs array [[day, ret], ...] including D0=1.0
-            const obs = [[0,1.0], ...Object.entries(medians).map(([d,r])=>[+d,r]).sort((a,b)=>a[0]-b[0])];
-
-            // Fit exponential tail to last 3 reliable points (≥3 cohorts)
-            const reliable = obs.filter(([d])=>d>0).slice(-4);
-            if (reliable.length >= 2) {
-                const pts = reliable.slice(-3);
+            // Least-squares exponential fit on log scale
+            const fitExp = (pts) => {
                 const ds=pts.map(p=>p[0]), rs=pts.map(p=>p[1]);
                 const lnrs=rs.map(r=>Math.log(r));
                 const n=ds.length, sd=ds.reduce((a,b)=>a+b,0), slnr=lnrs.reduce((a,b)=>a+b,0);
                 const sd2=ds.reduce((s,d)=>s+d*d,0), sdlnr=ds.reduce((s,d,i)=>s+d*lnrs[i],0);
                 const K=-(n*sdlnr-sd*slnr)/(n*sd2-sd*sd);
-                const A=Math.exp((slnr+K*sd)/n);
-                const d1 = medians[1]||obs[1]?.[1]||0;
-                const curve = { obs, A:+A.toFixed(4), K:+K.toFixed(5), d1:+d1.toFixed(5), cohortCount:rows.length, uploadedAt:new Date().toISOString().split('T')[0] };
-                setRetentionCurve(curve);
-                store.set('nw-retention-curve', curve);
-                alert('✅ Retention curve updated! D1='+( d1*100).toFixed(1)+'%, '+rows.length+' cohorts fitted.');
-            } else {
-                alert('Not enough day columns to fit a curve. Need at least 2 day points.');
+                return { A: Math.exp((slnr+K*sd)/n), K };
+            };
+
+            // Old reliable tail anchors (85 cohorts, Dec 2025–Feb 2026)
+            const TAIL_ANCHORS = [[30,0.0131],[45,0.0107],[75,0.0054]];
+
+            // Pick fit points: reliable new points (n≥8, day≥7) + old tail anchors
+            // This prevents noisy low-n late cohorts from destroying the fit
+            const reliableNew = Object.entries(medians)
+                .map(([d,r])=>[+d,r])
+                .filter(([d])=>nCounts[d]>=8 && d>=7)
+                .sort((a,b)=>a[0]-b[0]);
+
+            // Use latest 2 reliable new points + all tail anchors for blended fit
+            const fitPts = [...reliableNew.slice(-2), ...TAIL_ANCHORS];
+            let A=0.0259, K=0.02075; // hardcoded fallback
+            if (fitPts.length >= 3) {
+                const fit = fitExp(fitPts);
+                // Sanity check: K must be positive (retention decays), half-life 5–200 days
+                const hl = Math.log(2)/fit.K;
+                if (fit.K > 0 && hl > 5 && hl < 200) {
+                    A = fit.A; K = fit.K;
+                }
+                // else silently use fallback — bad data, don't blow up the model
             }
+
+            // Build obs: all new medians + tail anchors not already covered
+            const newDays = new Set(Object.keys(medians).map(Number));
+            const tailToAdd = TAIL_ANCHORS.filter(([d])=>!newDays.has(d));
+            const rawObs = [
+                ...Object.entries(medians).map(([d,r])=>[+d,r]).sort((a,b)=>a[0]-b[0]),
+                ...tailToAdd.sort((a,b)=>a[0]-b[0])
+            ];
+            // ── Monotonic clamp: retention must never increase over time ──
+            // Noisy late cohorts (D24 with 5 cohorts, D27 with 2) can spike upward
+            // and destroy the interpolation. Force each point ≤ previous.
+            let runMin = 1.0;
+            const obsMonotonic = rawObs.map(([d,r]) => {
+                const clamped = Math.min(r, runMin);
+                runMin = clamped;
+                return [d, clamped];
+            });
+            const obs = [[0,1.0], ...obsMonotonic];
+
+            const d1 = medians[1]||0;
+            const halfLife = K>0 ? +(Math.log(2)/K).toFixed(1) : null;
+            const curve = { obs, A:+A.toFixed(4), K:+K.toFixed(5), d1:+d1.toFixed(5),
+                cohortCount:rows.length, uploadedAt:new Date().toISOString().split('T')[0],
+                halfLife, fitPts: fitPts.length };
+            setRetentionCurve(curve);
+            store.set('nw-retention-curve', curve);
+            alert('✅ Retention updated · D1='+(d1*100).toFixed(1)+'% · Half-life='+(halfLife||'?')+'d · '+rows.length+' cohorts');
         }});
     };
 
